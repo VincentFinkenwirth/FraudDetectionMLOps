@@ -1,0 +1,50 @@
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.idea/
+work/*
+!work/runs/
+work/runs/*
+!work/runs/run_local.sh
+work_*/
+tmp/
+.env
+.env.*
+!.env.example
+*.egg-info/
+catboost_info/
+
+# Keep the repository focused on implementation and runtime configuration.
+tests/
+test_*.py
+*_test.py
+docs/
+task/
+tasks/
+*.md
+*.ipynb
+*.pdf
+*.ppt
+*.pptx
+*.doc
+*.docx
+simulation/presentation_charts.py
+simulation/slide_charts.py
+simulation/guide_charts.py
+initial_model/initial_test_metrics_raw_scores.json
+
+# Local tooling, credentials and private keys.
+.agents/
+.codex/
+.aws/
+*.pem
+*.key
+
+# Base.csv is 213 MB (GitHub allows 100 MB). Download it with get_data.py.
+data/
+
+# Deployed model versions are created by package_model.py and the pipeline.
+# The frozen initial model (125 KB) is in initial_model/ and IS in git.
+models/

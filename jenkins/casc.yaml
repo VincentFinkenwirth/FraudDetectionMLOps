@@ -1,0 +1,46 @@
+# Jenkins Configuration as Code: admin user, security and the two pipeline jobs.
+# ${...} values come from environment variables set in docker-compose.yml (.env).
+jenkins:
+  systemMessage: "Fraud detection MLOps (local demo). Jobs: fraud-monitor (weekly) and fraud-retrain."
+  numExecutors: 2          # the monitor job waits for the retrain job, so two are needed
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_ID}"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+
+jobs:
+  - script: |
+      pipelineJob('fraud-monitor') {
+        description('Weekly monitoring of drift, data quality and performance. Starts fraud-retrain when needed.')
+        parameters {
+          stringParam('AS_OF', '', 'End of the monitored week as ISO time (empty = now). The simulator sets this.')
+        }
+        definition {
+          cps {
+            script(new File('/project/jenkins/monitor.Jenkinsfile').text)
+            sandbox(true)
+          }
+        }
+      }
+      pipelineJob('fraud-retrain') {
+        description('Snapshot -> train -> evaluate (promotion gate) -> register -> deploy with smoke test and rollback.')
+        parameters {
+          stringParam('AS_OF', '', 'Simulated time of the run (empty = now). Only labels known at this time are used.')
+          stringParam('REASON', 'manual', 'Why the retraining runs: schedule, data_drift, performance or manual.')
+        }
+        definition {
+          cps {
+            script(new File('/project/jenkins/retrain.Jenkinsfile').text)
+            sandbox(true)
+          }
+        }
+      }

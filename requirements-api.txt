@@ -1,0 +1,9 @@
+# Only what the REST API container needs (smaller image than requirements.txt).
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+pydantic>=2.7,<3
+catboost>=1.2.8,<2
+pandas>=2.2,<4
+numpy>=1.26,<3
+sqlalchemy>=2.0,<3
+psycopg[binary]>=3.2,<4

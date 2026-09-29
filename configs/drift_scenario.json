@@ -1,0 +1,30 @@
+{
+  "description": "Twelve simulated months built from simulation_pool.csv. The pool is read in its original order (so the natural drift of the BAF data between real months 4-7 is kept); each month keeps rows with the drift probabilities below until it has its planned number of applications ('rows'). The downturn brings more applications (16,000 -> 20,000 per month).",
+  "seed": 2026,
+  "start_date": "2025-01-06T00:00:00",
+  "weeks_per_month": 4,
+  "rows_per_month": 16000,
+  "label_delay_weeks": 4,
+  "audit_share": 0.02,
+  "camouflage_features": [
+    "device_os",
+    "housing_status",
+    "has_other_cards",
+    "phone_home_valid",
+    "keep_alive_session"
+  ],
+  "months": [
+    {"month": 1, "story": "Normal operation (control month)", "rows": 16000},
+    {"month": 2, "story": "Normal operation (control month)", "rows": 16000},
+    {"month": 3, "story": "Economic downturn starts: more applicants with low income who recently moved (+12 % applications)", "rows": 18000, "downturn": 0.4},
+    {"month": 4, "story": "Downturn gets stronger (+19 % applications) and the share of fraud rises", "rows": 19000, "downturn": 0.5, "drop_legit": 0.1},
+    {"month": 5, "story": "New credit bureau: credit_risk_score is now reported on a new scale (old value + 600)", "rows": 20000, "downturn": 0.6, "drop_legit": 0.15, "score_offset": 600},
+    {"month": 6, "story": "Downturn continues (persistent shift)", "rows": 20000, "downturn": 0.6, "drop_legit": 0.15, "score_offset": 600},
+    {"month": 7, "story": "Fraudsters start to copy the signals of normal applicants", "rows": 20000, "downturn": 0.6, "drop_legit": 0.15, "camouflage": 0.2, "score_offset": 600},
+    {"month": 8, "story": "More fraudsters adapt", "rows": 20000, "downturn": 0.6, "drop_legit": 0.15, "camouflage": 0.35, "score_offset": 600},
+    {"month": 9, "story": "Half of the fraud cases are camouflaged", "rows": 20000, "downturn": 0.6, "drop_legit": 0.15, "camouflage": 0.5, "score_offset": 600},
+    {"month": 10, "story": "New mobile form: no session length and an unknown device type for 30 % of applications", "rows": 20000, "downturn": 0.6, "drop_legit": 0.15, "camouflage": 0.5, "incident": 0.3, "score_offset": 600},
+    {"month": 11, "story": "Mobile form fixed; camouflage continues", "rows": 20000, "downturn": 0.6, "drop_legit": 0.15, "camouflage": 0.5, "score_offset": 600},
+    {"month": 12, "story": "Camouflage continues", "rows": 20000, "downturn": 0.6, "drop_legit": 0.15, "camouflage": 0.5, "score_offset": 600}
+  ]
+}

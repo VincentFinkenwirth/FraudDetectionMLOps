@@ -1,0 +1,102 @@
+# Local deployment of the whole system.
+#
+#   1. cp .env.example .env   (and put in your own random values)
+#   2. python package_model.py   (creates models/versions/v1 and models/current.json)
+#   3. docker compose up -d --build
+#
+# Ports are bound to 127.0.0.1, so only this computer can reach the services.
+# PostgreSQL has no published port at all: only the API and Jenkins can use it.
+name: fraud-mlops
+
+x-database-url: &database-url "postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/mlflow.Dockerfile
+    environment:
+      MLFLOW_AUTH_CONFIG_PATH: /mlflow/auth.ini
+      MLFLOW_AUTH_ADMIN_PASSWORD: ${MLFLOW_ADMIN_PASSWORD}
+      # The login pages use CSRF protection; MLflow refuses to start without this key.
+      MLFLOW_FLASK_SERVER_SECRET_KEY: ${MLFLOW_SECRET_KEY}
+      # Other containers call the server as "mlflow:5000"; the browser uses localhost.
+      MLFLOW_SERVER_ALLOWED_HOSTS: "mlflow:5000,localhost:5000,127.0.0.1:5000"
+    volumes:
+      - mlflow_data:/mlflow/data
+    ports:
+      - "127.0.0.1:5000:5000"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      DATABASE_URL: *database-url
+      MODEL_DIR: /models
+      MODEL_CHECK_SECONDS: "5"
+      API_KEY_PREDICT: ${API_KEY_PREDICT}
+      API_KEY_LABELS: ${API_KEY_LABELS}
+      API_KEY_MONITOR: ${API_KEY_MONITOR}
+      API_KEY_ADMIN: ${API_KEY_ADMIN}
+    volumes:
+      - ./models:/models:ro      # the API may read the models but never change them
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  jenkins:
+    build:
+      context: .
+      dockerfile: jenkins/Dockerfile
+    environment:
+      JENKINS_ADMIN_ID: ${JENKINS_ADMIN_ID}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD}
+      # Everything the pipeline scripts need
+      DATABASE_URL: *database-url
+      MODEL_DIR: /models
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_TRACKING_USERNAME: admin
+      MLFLOW_TRACKING_PASSWORD: ${MLFLOW_ADMIN_PASSWORD}
+      MONITORING_STREAM: docker-simulation
+      API_URL: http://api:8000
+      API_KEY_ADMIN: ${API_KEY_ADMIN}
+      PYTHONPATH: /project
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./:/project:ro           # code, configs and data; Jenkins cannot change them
+      - ./models:/models         # Jenkins publishes new model versions here
+      - ./work/docker_reports:/reports
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  mlflow_data:
+  jenkins_home:

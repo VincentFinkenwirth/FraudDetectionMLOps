@@ -1,0 +1,6 @@
+# The model bundle checks preprocessing.py, and the Linux containers run shell
+# commands, so text files always use LF line endings, also on Windows.
+* text=auto eol=lf
+*.cbm binary
+*.png binary
+*.pdf binary

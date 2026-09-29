@@ -1,0 +1,31 @@
+{
+  "_comment": "Data policy and promotion gate for the monthly / drift-triggered retraining. threshold_policy and review_share must be the same as in monitoring.json (checked by a test). fixed_tree_count = tree count of the tuned model v1 (Optuna trial 21), used instead of early stopping. holdout_days = newest labelled days for the gate (the rest is fit data, no validation split); reference_days = last days of the fit window used as the drift reference. holdout_days must be the same as in monitoring.json.",
+  "model_config": "configs/training_cpu.json",
+  "mlflow_experiment": "fraud-retraining",
+  "registered_model_name": "fraud-detector",
+  "history_files": [
+    "data/splits/train.csv",
+    "data/splits/val.csv",
+    "data/splits/test.csv"
+  ],
+  "history_rows": 150000,
+  "history_seed": 42,
+  "holdout_days": 14,
+  "reference_days": 14,
+  "fit_window_days": 168,
+  "min_eval_frauds": 40,
+  "quarantine_days": 7,
+  "fixed_tree_count": 377,
+  "threshold_policy": "workload",
+  "review_share": 0.055,
+  "gate": {
+    "min_holdout_frauds": 20,
+    "min_missed_frauds": 10,
+    "min_ap_lift": 2.0,
+    "max_known_fraud_loss": 0.15,
+    "recall_margin": 0.02,
+    "fpr_tolerance": 0.01,
+    "bootstrap_samples": 2000,
+    "seed": 7
+  }
+}

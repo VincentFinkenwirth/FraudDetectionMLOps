@@ -1,0 +1,67 @@
+{
+  "run_id": "2a4790d9e4484371b959f0511d87571a",
+  "created_at": "2026-09-25T14:40:35.754096+00:00",
+  "data": {
+    "train": {
+      "path": "C:\\Users\\vince\\PycharmProjects\\Modeltoprod\\data\\splits\\train.csv",
+      "sha256": "e2d7f6cd7079b0d941ec76d739bad16c24452d65b5ea73e6b1d024feacb2ac28",
+      "rows": 400000
+    },
+    "validation": {
+      "path": "C:\\Users\\vince\\PycharmProjects\\Modeltoprod\\data\\splits\\val.csv",
+      "sha256": "53f95956541caf23586cd9aa3a8a82f2140fc91f9e73768dd397084ed7dc02be",
+      "rows": 100000
+    }
+  },
+  "tree_count": 377,
+  "best_iteration": 376,
+  "catboost_best_scores": {
+    "learn": {
+      "Logloss": 0.19206061700678326,
+      "PRAUC:type=Classic;use_weights=false": 0.17338943814618354
+    },
+    "validation": {
+      "Logloss": 0.18486849751913392,
+      "PRAUC:type=Classic;use_weights=false": 0.15692739000132133
+    }
+  },
+  "effective_model_params": {
+    "iterations": 4000,
+    "learning_rate": 0.1147217347299483,
+    "depth": 3,
+    "l2_leaf_reg": 50.57780418194655,
+    "loss_function": "Logloss",
+    "border_count": 128,
+    "thread_count": 4,
+    "random_seed": 42,
+    "auto_class_weights": "SqrtBalanced",
+    "eval_metric": "PRAUC:type=Classic;use_weights=False",
+    "bagging_temperature": 1.6174977434976574,
+    "allow_writing_files": false,
+    "task_type": "GPU",
+    "devices": "0",
+    "bootstrap_type": "Bayesian",
+    "cat_features": [
+      "payment_type",
+      "employment_status",
+      "housing_status",
+      "source",
+      "device_os"
+    ]
+  },
+  "training_code_sha256": "7ecdd35d91290153d5121e4658ecc0e2d3ced943ec110fc127facaeeadd8c8bd",
+  "visualization_code_sha256": "0c6574f148e9b6ac645bce1820891096f5ad5642e80a81cbb41c7a7b3ad23082",
+  "library_versions": {
+    "catboost": "1.2.10",
+    "pandas": "3.0.6",
+    "numpy": "2.5.3",
+    "scikit-learn": "1.9.1",
+    "mlflow": "3.16.1",
+    "matplotlib": "3.11.2"
+  },
+  "threshold_selection": {
+    "method": "recall_at_fpr",
+    "max_fpr": 0.05
+  },
+  "threshold_note": "Maximise validation recall with FPR strictly below max_fpr. Predictions use score >= threshold. The limit is empirical on validation, not guaranteed on future data. Probabilities are not calibrated."
+}

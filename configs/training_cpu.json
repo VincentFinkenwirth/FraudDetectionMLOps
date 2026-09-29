@@ -1,0 +1,28 @@
+{
+  "_comment": "Hyperparameters of the Optuna winner (study catboost-fpr-v1, trial 21), but trained on the CPU so Jenkins and other people can run it without a GPU.",
+  "model_params": {
+    "loss_function": "Logloss",
+    "eval_metric": "PRAUC:type=Classic;use_weights=False",
+    "iterations": 4000,
+    "depth": 3,
+    "learning_rate": 0.1147217347299483,
+    "l2_leaf_reg": 50.57780418194655,
+    "auto_class_weights": "SqrtBalanced",
+    "random_seed": 42,
+    "thread_count": 4,
+    "task_type": "CPU",
+    "allow_writing_files": false,
+    "border_count": 128,
+    "bootstrap_type": "Bayesian",
+    "bagging_temperature": 1.6174977434976574
+  },
+  "fit_params": {
+    "early_stopping_rounds": 150,
+    "verbose": 0
+  },
+  "threshold": 0.5,
+  "threshold_selection": {
+    "method": "recall_at_fpr",
+    "max_fpr": 0.05
+  }
+}

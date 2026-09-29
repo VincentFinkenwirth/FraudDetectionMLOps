@@ -1,0 +1,14 @@
+# Keep the build context small: the images only need code and requirement files.
+.git
+.idea
+.venv
+.venv-*
+**/__pycache__
+.pytest_cache
+data/
+work/
+models/
+tmp/
+task/
+*.ipynb
+.env
