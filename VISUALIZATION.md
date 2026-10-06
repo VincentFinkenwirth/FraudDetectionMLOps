@@ -193,7 +193,7 @@ python -m simulation.plot_results --run all_labels=docs/results/all_labels `
 The three models are `system` (served scores), `fast_loop` (frozen v1 + weekly
 threshold) and `no_mlops` (frozen v1, fixed threshold); a series is `run:model`.
 The first series of a comparison is orange, the second black (dashed, square
-markers). Output in `docs/presentation/results/`:
+markers). Output in `charts/` (in git, unlike `docs/`):
 
 - per run: a confusion matrix per month and model plus a 12-month overview,
   "what the system saw" (realistic runs: labelled rows only), labels per month,

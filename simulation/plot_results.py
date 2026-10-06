@@ -3,7 +3,7 @@
     python -m simulation.plot_results
     python -m simulation.plot_results --run all_labels=docs/results/all_labels \
         --run audit_a=docs/results/realistic_labels/audit_sample_a \
-        --compare all_labels:system,audit_a:system --output docs/presentation/results
+        --compare all_labels:system,audit_a:system --output charts
 
 A result folder is what simulation.summarize writes: applications.parquet,
 weekly_monitoring.csv, trainings.csv, weekly_feature_psi.csv and (since the
@@ -815,7 +815,7 @@ def main():
     parser.add_argument("--run", action="append", help="name=folder with the summarize output (repeatable)")
     parser.add_argument("--compare", action="append",
                         help="two series run:model,run:model (repeatable); models: " + ", ".join(MODELS))
-    parser.add_argument("--output", type=Path, default=PROJECT_DIR / "docs" / "presentation" / "results")
+    parser.add_argument("--output", type=Path, default=PROJECT_DIR / "charts")
     parser.add_argument("--no-monthly-matrices", action="store_true",
                         help="skip the single confusion matrix per month (36 files per run)")
     args = parser.parse_args()

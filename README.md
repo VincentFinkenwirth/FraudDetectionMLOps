@@ -121,6 +121,7 @@ The tables end up in `work/docker_reports/` (the local runs write to `work/runs/
 Charts and the comparison table are made from them with:
 
 ```powershell
+python -m simulation.plot_results       # all result charts from docs/results -> charts/ (in git)
 python -m simulation.presentation_charts --results work/docker_reports --realistic work/runs/realistic_a/report --output docs/results/charts
 python -m simulation.guide_charts
 python -m simulation.compare_runs --run all_labels=work/docker_reports --run realistic_a=work/runs/realistic_a/report
