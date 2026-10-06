@@ -52,7 +52,7 @@ from pipeline.common import (
     week_number, workload_threshold, write_json,
 )
 from preprocessing import prepare_features
-from scoring import FraudScorer
+from scoring import FraudScorer, calibration_summary
 from service import db
 from train import setup_mlflow
 
@@ -73,6 +73,9 @@ def served_performance(labelled):
     tp, fp = w[flagged & (y == 1)].sum(), w[flagged & (y == 0)].sum()
     fraud_weight, legit_weight = w[y == 1].sum(), w[y == 0].sum()
     both = bool((y == 1).any() and (y == 0).any())
+    # The API returns probabilities, so I also check whether they fit the real
+    # fraud rate (Brier score, mean probability / fraud rate, ECE).
+    calibration = calibration_summary(y, scores, w) if len(y) else {}
     return {
         "rows": int(len(y)),
         "fraud_cases": int(y.sum()),
@@ -88,6 +91,7 @@ def served_performance(labelled):
         "flagged_rate": float(np.average(flagged, weights=w)) if len(y) else None,
         "average_precision": float(average_precision_score(y, scores, sample_weight=w)) if both else None,
         **fpr_by_age(y, flagged, labelled["customer_age"].to_numpy(), weights=w),
+        **{key: value for key, value in calibration.items() if key != "observed_rate"},   # = fraud_rate
     }
 
 
@@ -130,8 +134,7 @@ def drifted_labels_in_fit(engine, drift_since, label_cutoff, as_of, holdout_days
                                    event_until=newest - timedelta(days=holdout_days))
 
 
-def decide(config, as_of, drift, performance, reference_metrics, max_fpr, last_training, new_labels,
-           drifted_labels):
+def decide(config, as_of, drift, performance, max_fpr, last_training, new_labels, drifted_labels):
     """Turn the measurements into one decision plus a list of reasons."""
     start = parse_time(config["simulation_start"])
     last_time = last_training["as_of"] if last_training else start
@@ -171,11 +174,16 @@ def decide(config, as_of, drift, performance, reference_metrics, max_fpr, last_t
     #    single audited fraud, and it reported a recall of 100 % (true: 44 %).
     #    The effective sample size does not notice this (all 117 labels have the
     #    same weight), so recall is only judged when enough missed frauds are labelled.
+    #    The recall target is FIXED (min_served_recall in monitoring.json). Before,
+    #    each model was compared with its own holdout recall, which jumped between
+    #    0.34 and 0.64 from model to model (only ~100 frauds per holdout) and fell
+    #    with the camouflage drift. In weeks 38-46 of my v3 run the served recall
+    #    was 36-42 % (v1 started at 59 %), but the trigger never fired.
     if performance is not None and performance["fraud_cases"] >= config["min_fraud_labels_for_performance"]:
         recall_measurable = (performance["effective_fraud_cases"] >= config["min_fraud_labels_for_performance"]
                              and performance["missed_fraud_labels"] >= config["min_missed_fraud_labels"])
         recall_low = recall_measurable and (
-            performance["recall"] < reference_metrics["recall"] - config["recall_drop_threshold"])
+            performance["recall"] < config["min_served_recall"])
         fpr_high = performance["false_positive_rate"] > max_fpr + config["fpr_tolerance"]
         if not recall_measurable:
             warnings.append(f"recall not measurable: only {performance['missed_fraud_labels']} labelled frauds "
@@ -185,6 +193,14 @@ def decide(config, as_of, drift, performance, reference_metrics, max_fpr, last_t
             reasons.append("performance")
         elif recall_low or fpr_high:
             warnings.append("performance below the reference, but the model was retrained recently (cooldown)")
+    if performance is not None and performance["fraud_cases"] >= config["min_fraud_labels_for_performance"]:
+        # Probabilities that are clearly too high or too low. Only a warning: the
+        # ranking (and so the review list) can still be fine. Each retraining
+        # recalibrates the new model on its holdout.
+        calibration = performance.get("calibration_ratio")
+        low, high = config["calibration_ratio_band"]
+        if calibration is not None and not low <= calibration <= high:
+            warnings.append(f"calibration: the mean fraud probability is {calibration:.2f}x the real fraud rate")
     if performance is not None:
         ratio = performance.get("fpr_ratio_age")
         if ratio is not None and ratio < config["min_fpr_ratio_age_warning"]:
@@ -263,7 +279,6 @@ def run_monitoring(as_of, config, engine, models_folder, log_to_mlflow=True):
     as_of = parse_time(as_of)
     bundle = model_registry.current_bundle_dir(models_folder)
     champion = FraudScorer(bundle)
-    reference_metrics = load_json(bundle / "validation_metrics.json")
     max_fpr = (champion.config.get("threshold_selection") or {}).get("max_fpr", 0.05)
 
     # 1) Data drift on the applications of the last week
@@ -301,8 +316,7 @@ def run_monitoring(as_of, config, engine, models_folder, log_to_mlflow=True):
     drifted_labels = (drifted_labels_in_fit(engine, parse_time(drift_since), label_cutoff, as_of,
                                             config["holdout_days"])
                       if drift_since else 0)
-    decision = decide(config, as_of, drift, all_served, reference_metrics, max_fpr, last_training,
-                      new_labels, drifted_labels)
+    decision = decide(config, as_of, drift, all_served, max_fpr, last_training, new_labels, drifted_labels)
 
     # 5) Fast loop (no labels): threshold for next week's applications
     threshold = None
@@ -321,7 +335,7 @@ def run_monitoring(as_of, config, engine, models_folder, log_to_mlflow=True):
         "drift_since": drift_since,
         "performance_all_served": all_served,
         "performance_current_model": current_model,
-        "reference_recall": reference_metrics.get("recall"),
+        "target_recall": config["min_served_recall"],
         "threshold": threshold,
         **decision,
     })

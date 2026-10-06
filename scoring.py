@@ -20,6 +20,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import catboost
 from catboost import CatBoostClassifier
 
 from preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS, prepare_features
@@ -64,6 +65,73 @@ def fraud_probabilities(model, X, odds_divisor=None):
     return correct_for_class_weights(model.predict_proba(X)[:, 1], odds_divisor)
 
 
+def fit_prior_adjustment(probabilities, labels, weights=None, low=0.25, high=4.0):
+    """Extra odds divisor c, so that the mean probability equals the observed fraud rate.
+
+    The class-weight correction gives probabilities for the fraud rate of the
+    training data. A retrained model is fitted on old history + recent data, and
+    the fraud rate keeps changing (prior shift), so in my v3 run the served
+    models predicted between 0.7x and 1.5x the real rate. One more odds factor
+    fixes the overall level ("calibration in the large") without changing the
+    order of the applications. Mean probability falls when c grows, so a
+    simple bisection finds c. I clamp it, so a strange holdout cannot produce
+    absurd probabilities.
+    """
+    p = np.asarray(probabilities, dtype=float)
+    w = np.ones(len(p)) if weights is None else np.asarray(weights, dtype=float)
+    target = np.average(np.asarray(labels, dtype=float), weights=w)
+
+    def mean_with(c):
+        return np.average(correct_for_class_weights(p, c), weights=w)
+
+    if mean_with(high) > target:
+        return high
+    if mean_with(low) < target:
+        return low
+    log_low, log_high = np.log(low), np.log(high)
+    for _ in range(100):
+        middle = (log_low + log_high) / 2
+        if mean_with(np.exp(middle)) > target:
+            log_low = middle
+        else:
+            log_high = middle
+    return float(np.exp((log_low + log_high) / 2))
+
+
+def calibration_summary(labels, probabilities, weights=None, bins=10):
+    """How well the probabilities match the real fraud rate (the API promises probabilities).
+
+    - brier: mean squared error of the probabilities; brier_base_rate is the
+      same for always predicting the observed rate (a useful model is lower)
+    - calibration_ratio: mean probability / observed rate (1 = right level)
+    - ece: average gap between predicted and observed rate in `bins`
+      groups of equal size (sorted by probability)
+    With realistic labels the rows are weighted (an audited case counts
+    1 / audit share times), so every number is a weighted mean.
+    """
+    y = np.asarray(labels, dtype=float)
+    p = np.asarray(probabilities, dtype=float)
+    w = np.ones(len(y)) if weights is None else np.asarray(weights, dtype=float)
+    observed = float(np.average(y, weights=w))
+    predicted = float(np.average(p, weights=w))
+
+    order = np.argsort(p, kind="stable")
+    ece = 0.0
+    for group in np.array_split(order, min(bins, len(order))):
+        group_weight = w[group].sum()
+        if group_weight > 0:
+            gap = np.average(p[group], weights=w[group]) - np.average(y[group], weights=w[group])
+            ece += group_weight / w.sum() * abs(gap)
+    return {
+        "brier": float(np.average((p - y) ** 2, weights=w)),
+        "brier_base_rate": float(np.average((observed - y) ** 2, weights=w)),
+        "mean_predicted": predicted,
+        "observed_rate": observed,
+        "calibration_ratio": predicted / observed if observed > 0 else None,
+        "ece": float(ece),
+    }
+
+
 def text_hash(path):
     """Hash a text file independent of Windows/Linux line endings.
 
@@ -104,11 +172,22 @@ class FraudScorer:
         if self.config.get("threshold_scale") != "probability":
             raise ValueError("The saved threshold must be on the probability scale.")
 
+        # Training (Jenkins) and serving (API image) install the same lock file. If
+        # they ever differ, I would rather keep the old model than serve a model
+        # file that another CatBoost version wrote (the hot reload keeps the old one).
+        trained_with = self.metadata.get("library_versions", {}).get("catboost")
+        if trained_with and trained_with != catboost.__version__:
+            raise ValueError(f"The bundle was trained with CatBoost {trained_with}, "
+                             f"but CatBoost {catboost.__version__} is installed.")
+
         self.model = CatBoostClassifier()
         self.model.load_model(str(self.bundle_dir / "model.cbm"))
         self.odds_divisor = float(calibration["odds_divisor"])
         # Small sanity check so a copied config cannot silently belong to another model.
-        if not np.isclose(self.odds_divisor, class_weight_ratio(self.model), rtol=1e-4):
+        # A retrained model also has a prior adjustment (see fit_prior_adjustment),
+        # then the divisor is class weight ratio * adjustment.
+        expected = class_weight_ratio(self.model) * float(calibration.get("prior_adjustment", 1.0))
+        if not np.isclose(self.odds_divisor, expected, rtol=1e-4):
             raise ValueError("The saved odds divisor does not match the model's class weights.")
 
         self.threshold = float(self.config["threshold"])
@@ -146,4 +225,7 @@ class FraudScorer:
             "training_as_of": self.metadata.get("training_as_of"),
             "mlflow_run_id": self.metadata.get("run_id"),
             "tree_count": self.metadata.get("tree_count"),
+            "prior_adjustment": self.config["probability_calibration"].get("prior_adjustment", 1.0),
+            # Which code trained this model (older bundles have no lineage yet).
+            "git_commit": self.metadata.get("lineage", {}).get("git_commit"),
         }

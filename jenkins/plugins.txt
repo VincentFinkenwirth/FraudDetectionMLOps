@@ -3,3 +3,4 @@ job-dsl
 workflow-aggregator
 pipeline-stage-view
 timestamper
+git

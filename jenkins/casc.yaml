@@ -1,8 +1,11 @@
-# Jenkins Configuration as Code: admin user, security and the two pipeline jobs.
+# Jenkins Configuration as Code: admin user, security and the three pipeline jobs.
+# fraud-ci tests every new commit of GIT_REPO_URL and pushes green commits to the
+# release repository in the Jenkins home; fraud-monitor and fraud-retrain load
+# their Jenkinsfile and code from there, so they only ever run released code.
 # ${...} values come from environment variables set in docker-compose.yml (.env).
 jenkins:
-  systemMessage: "Fraud detection MLOps (local demo). Jobs: fraud-monitor (weekly) and fraud-retrain."
-  numExecutors: 2          # the monitor job waits for the retrain job, so two are needed
+  systemMessage: "Fraud detection MLOps (local demo). Jobs: fraud-ci, fraud-monitor (weekly) and fraud-retrain."
+  numExecutors: 3          # monitor waits for retrain, and fraud-ci can run at the same time
   securityRealm:
     local:
       allowsSignup: false
@@ -19,15 +22,43 @@ unclassified:
 
 jobs:
   - script: |
+      pipelineJob('fraud-ci') {
+        description('CI: environment check, unit tests and a training smoke test for every new commit. Green commits are released to fraud-monitor and fraud-retrain.')
+        properties {
+          pipelineTriggers {
+            triggers {
+              pollSCM { scmpoll_spec('* * * * *') }
+            }
+          }
+        }
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote { url('${GIT_REPO_URL}') }
+                branch('*/${GIT_BRANCH}')
+              }
+            }
+            scriptPath('jenkins/ci.Jenkinsfile')
+            lightweight(true)
+          }
+        }
+      }
       pipelineJob('fraud-monitor') {
         description('Weekly monitoring of drift, data quality and performance. Starts fraud-retrain when needed.')
         parameters {
           stringParam('AS_OF', '', 'End of the monitored week as ISO time (empty = now). The simulator sets this.')
         }
         definition {
-          cps {
-            script(new File('/project/jenkins/monitor.Jenkinsfile').text)
-            sandbox(true)
+          cpsScm {
+            scm {
+              git {
+                remote { url('file:///var/jenkins_home/release.git') }
+                branch('*/main')
+              }
+            }
+            scriptPath('jenkins/monitor.Jenkinsfile')
+            lightweight(true)
           }
         }
       }
@@ -38,9 +69,15 @@ jobs:
           stringParam('REASON', 'manual', 'Why the retraining runs: schedule, data_drift, performance or manual.')
         }
         definition {
-          cps {
-            script(new File('/project/jenkins/retrain.Jenkinsfile').text)
-            sandbox(true)
+          cpsScm {
+            scm {
+              git {
+                remote { url('file:///var/jenkins_home/release.git') }
+                branch('*/main')
+              }
+            }
+            scriptPath('jenkins/retrain.Jenkinsfile')
+            lightweight(true)
           }
         }
       }

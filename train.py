@@ -24,6 +24,7 @@ from sklearn.metrics import roc_curve
 
 from drift import build_reference_profile
 from fairness import fpr_by_age
+from lineage import code_lineage
 from preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS, prepare_dataset, prepare_features
 from scoring import CALIBRATION_METHOD, class_weight_ratio, fraud_probabilities
 from visualization import calculate_metrics, create_evaluation_report
@@ -226,17 +227,19 @@ def select_threshold_at_fpr(labels, scores, max_fpr, weights=None):
     return float(threshold) if np.isfinite(threshold) else NO_ALERT_THRESHOLD
 
 
-def evaluate_model(model, validation_data, threshold, threshold_selection=None, *, return_predictions=False):
+def evaluate_model(model, validation_data, threshold, threshold_selection=None, *, return_predictions=False,
+                   odds_divisor=None):
     """Use unweighted metrics, even when the training uses class weights.
 
     The scores are corrected for the class weights first (see scoring.py), so
     the threshold and the metrics are on a real probability scale. Because the
     correction keeps the order of the scores, the selected operating point is
-    the same as with the raw scores.
+    the same as with the raw scores. odds_divisor: see calibrated_config
+    (None = only the class-weight correction).
     """
     X_val, y_val = prepare_dataset(validation_data)
     weights = row_weights(validation_data)
-    scores = fraud_probabilities(model, X_val)
+    scores = fraud_probabilities(model, X_val, odds_divisor)
     if threshold_selection is not None:
         threshold = select_threshold_at_fpr(y_val, scores, threshold_selection["max_fpr"], weights)
     metrics = calculate_metrics(y_val, scores, threshold, sample_weight=weights)
@@ -276,18 +279,23 @@ def setup_mlflow(tracking_uri=None, experiment="fraud-catboost"):
     mlflow.set_experiment(experiment)
 
 
-def calibrated_config(config, model, threshold):
+def calibrated_config(config, model, threshold, prior_adjustment=1.0):
     """The config that is saved next to the model.
 
     The threshold is on the corrected probability scale, and the odds divisor
     is stored so the API does exactly the same correction as the evaluation.
+    odds divisor = class weight ratio * prior adjustment; the retraining fits the
+    adjustment on its holdout (scoring.fit_prior_adjustment), train.py keeps 1.
     """
+    ratio = class_weight_ratio(model)
     saved_config = deepcopy(config)
     saved_config["threshold"] = float(threshold)
     saved_config["threshold_scale"] = "probability"
     saved_config["probability_calibration"] = {
         "method": CALIBRATION_METHOD,
-        "odds_divisor": class_weight_ratio(model),
+        "class_weight_ratio": ratio,
+        "prior_adjustment": float(prior_adjustment),
+        "odds_divisor": ratio * float(prior_adjustment),
     }
     return saved_config
 
@@ -332,6 +340,7 @@ def write_bundle(bundle_dir, model, saved_config, metrics, reference_data, refer
             "catboost", "pandas", "numpy", "scikit-learn", "mlflow", "matplotlib",
         ]},
         "threshold_selection": selection,
+        "lineage": code_lineage(),
         "threshold_note": (
             "Maximise validation recall with FPR strictly below max_fpr. Predictions use "
             "score >= threshold. The limit is empirical on validation, not guaranteed on "
@@ -354,6 +363,7 @@ def run_training(training_data, validation_data, config, data_info, output_dir, 
         mlflow.log_params({f"fit_{key}": value for key, value in config["fit_params"].items()})
         mlflow.log_dict(data_info, "data_info.json")
         mlflow.set_tag("selection_metric", f"validation_{get_selection_metric(config)}")
+        mlflow.set_tag("git_commit", code_lineage()["git_commit"] or "unknown")
         selection = config.get("threshold_selection")
         if selection is not None:
             mlflow.log_param("max_fpr", selection["max_fpr"])

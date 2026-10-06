@@ -79,10 +79,13 @@ services:
       MONITORING_STREAM: docker-simulation
       API_URL: http://api:8000
       API_KEY_ADMIN: ${API_KEY_ADMIN}
-      PYTHONPATH: /project
+      # fraud-ci takes the code from here (default: this repository, see below).
+      GIT_REPO_URL: ${GIT_REPO_URL:-file:///repo.git}
+      GIT_BRANCH: ${GIT_BRANCH:-main}
     volumes:
       - jenkins_home:/var/jenkins_home
-      - ./:/project:ro           # code, configs and data; Jenkins cannot change them
+      - ./:/project:ro           # data (and the summarize helper); the jobs run code from git
+      - ./.git:/repo.git:ro      # the git repository that fraud-ci polls
       - ./models:/models         # Jenkins publishes new model versions here
       - ./work/docker_reports:/reports
     ports:

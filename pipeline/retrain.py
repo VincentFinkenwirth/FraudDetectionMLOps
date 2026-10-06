@@ -55,11 +55,12 @@ from pipeline.common import (
     write_json,
 )
 from preprocessing import FEATURE_COLUMNS, TARGET_COLUMN, prepare_features
-from scoring import FraudScorer, fraud_probabilities
+from lineage import code_lineage
+from scoring import FraudScorer, calibration_summary, class_weight_ratio, fit_prior_adjustment, fraud_probabilities
 from service import db
 from train import (
-    calibrated_config, evaluate_model, load_config, numeric_metrics, row_weights, setup_mlflow, train_model,
-    use_cpu, write_bundle,
+    calibrated_config, evaluate_model, file_hash, load_config, numeric_metrics, row_weights, setup_mlflow,
+    train_model, use_cpu, write_bundle,
 )
 from visualization import calculate_metrics
 
@@ -161,6 +162,11 @@ def stage_snapshot(run_dir, as_of, config, engine):
                 "first_event": times.min() if len(times) else None,
                 "last_event": times.max() if len(times) else None}
 
+    # Lineage of the data: with these hashes I can show later exactly which rows
+    # a model was trained and judged on (the files stay in the Jenkins build).
+    hashes = {name: file_hash(run_dir / name) for name in ("fit.parquet", "holdout.parquet", "reference.parquet")}
+    hashes.update({path: file_hash(PROJECT_DIR / path) for path in config["history_files"]})
+
     snapshot = {
         "as_of": as_of,
         "label_cutoff": as_of,
@@ -173,6 +179,7 @@ def stage_snapshot(run_dir, as_of, config, engine):
         "reference": {"rows": len(reference),
                       "first_event": reference["event_time"].min() if len(reference) else None,
                       "last_event": reference["event_time"].max() if len(reference) else None},
+        "file_sha256": hashes,
     }
     write_json(run_dir / "snapshot.json", snapshot)
     return snapshot
@@ -200,24 +207,39 @@ def stage_train(run_dir, reason, config):
 
     setup_mlflow(experiment=config["mlflow_experiment"])
     with mlflow.start_run(run_name=f"retrain-{snapshot['as_of'][:10]}") as run:
-        mlflow.set_tags({"trigger_reason": reason, "as_of": snapshot["as_of"], "stage": "trained"})
+        mlflow.set_tags({"trigger_reason": reason, "as_of": snapshot["as_of"], "stage": "trained",
+                         "git_commit": code_lineage()["git_commit"] or "unknown"})
         mlflow.log_params({k: v for k, v in model_config["model_params"].items()})
         mlflow.log_params({"fit_rows": snapshot["fit"]["rows"], "holdout_rows": snapshot["holdout"]["rows"],
                            "reference_rows": snapshot["reference_rows"], "label_cutoff": snapshot["label_cutoff"]})
         mlflow.log_dict(snapshot, "snapshot.json")
 
         model = train_model(fit, None, model_config)
+        # Recalibration: the mean probability on the holdout is set to the
+        # holdout's fraud rate (one odds factor, the order of the applications
+        # stays the same, so the gate and the review list do not change).
+        ratio = class_weight_ratio(model)
+        holdout_probabilities = fraud_probabilities(model, prepare_features(holdout), ratio)
+        adjustment = fit_prior_adjustment(holdout_probabilities, holdout[TARGET_COLUMN], row_weights(holdout))
+        odds_divisor = ratio * adjustment
+        mlflow.log_metric("prior_adjustment", adjustment)
+
         # The documented threshold (recall at FPR < 5 %) and the reference
         # metrics of the bundle are measured on the holdout. Neither is used
         # by the gate (it sets both models to the same workload) and the trees
-        # never see the holdout, so this does not bias the comparison.
+        # never see the holdout, so this does not bias the comparison. The
+        # calibration numbers on the holdout are of course fitted there; the
+        # honest check is the weekly monitoring on later labels.
         metrics, labels, scores = evaluate_model(
-            model, holdout, model_config["threshold"], selection, return_predictions=True)
-        saved_config = calibrated_config(model_config, model, metrics["decision_threshold"])
+            model, holdout, model_config["threshold"], selection, return_predictions=True,
+            odds_divisor=odds_divisor)
+        metrics.update(calibration_summary(labels, scores, row_weights(holdout)))
+        saved_config = calibrated_config(model_config, model, metrics["decision_threshold"],
+                                         prior_adjustment=adjustment)
         mlflow.log_metrics({f"holdout_{k}": v for k, v in numeric_metrics(metrics).items()})
         mlflow.log_metric("tree_count", model.tree_count_)
 
-        reference_scores = fraud_probabilities(model, prepare_features(reference))
+        reference_scores = fraud_probabilities(model, prepare_features(reference), odds_divisor)
         write_bundle(run_dir / "candidate", model, saved_config, metrics, reference, reference_scores, {
             "run_id": run.info.run_id,
             "model_version": "candidate",
@@ -331,6 +353,7 @@ def holdout_metrics(scorer, holdout, threshold):
     weights = row_weights(holdout)
     metrics = calculate_metrics(labels, probabilities, threshold, sample_weight=weights)
     metrics.update(fpr_by_age(labels, flagged, holdout["customer_age"].to_numpy(), weights=weights))
+    metrics.update(calibration_summary(labels, probabilities, weights))
     metrics["fraud_cases"] = int(labels.sum())
     metrics["effective_fraud_cases"] = effective_count(holdout.loc[holdout[TARGET_COLUMN] == 1, "weight"])
     return metrics, flagged
@@ -381,6 +404,9 @@ def stage_evaluate(run_dir, config, engine, models_folder):
         "known_fraud_shares_candidate_champion": known_shares,
         "recall_difference": difference,
         "recall_difference_90ci": [low, high],
+        # Reported only (not used by the monitor, which has a fixed target):
+        # recall when review_share of the holdout weeks is reviewed.
+        "candidate_recall_at_review_share": candidate_metrics["recall"] if config.get("threshold_policy") == "workload" else None,
         "candidate": candidate_metrics,
         "champion": champion_metrics,
     }

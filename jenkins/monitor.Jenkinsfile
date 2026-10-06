@@ -1,4 +1,5 @@
-// Weekly monitoring job.
+// Weekly monitoring job. Jenkins loads this file and the code from the release
+// repository, i.e. the newest commit that passed fraud-ci.
 // In the simulation, simulation/replay.py starts it once per simulated week and
 // passes AS_OF. In real operation the cron trigger below would start it every
 // Monday (I left it commented out so it does not interfere with the simulation).
@@ -14,8 +15,8 @@ pipeline {
     stages {
         stage('Monitor') {
             steps {
-                // The project is mounted read-only at /project; results go to the workspace.
-                sh 'cd /project && python -m pipeline.monitor --as-of "$AS_OF" --output "$WORKSPACE/out"'
+                // The workspace is a checkout of the released commit; results go to out/.
+                sh 'python -m pipeline.monitor --as-of "$AS_OF" --output "$WORKSPACE/out"'
             }
         }
         stage('Decide') {

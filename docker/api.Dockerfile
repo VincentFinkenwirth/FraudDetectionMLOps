@@ -5,8 +5,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
-COPY requirements-api.txt .
-RUN pip install --no-cache-dir -r requirements-api.txt
+# The lock file pins every package (same versions as the training environment).
+COPY requirements-api.lock .
+RUN pip install --no-cache-dir -r requirements-api.lock
 
 COPY preprocessing.py scoring.py model_registry.py ./
 COPY service/ service/
