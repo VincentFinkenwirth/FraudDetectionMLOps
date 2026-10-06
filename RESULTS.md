@@ -151,6 +151,33 @@ What this shows:
   measurement; better models would need more label information (larger or targeted audit, other
   label sources, champion/challenger reviews).
 
+### Open issue: recall with realistic labels (not fixed in this project)
+
+For the fourth version I raised the audit from 2 % to 5 % (weight 20). It is still not enough:
+the rebuilt months contain 165 audited fraud cases in the whole year, about 14 per 4 weeks, and
+only ~8 of them are frauds the model missed. Recall needs exactly these cases. The monitor wants
+≥ 20 in 28 days, the gate ≥ 10 in its 14-day holdout, so with realistic labels:
+
+- recall is never measured and the performance trigger never fires (schedule and drift still do);
+- the promotion gate can only reject clearly broken models (sanity check and the known-fraud
+  check, see below), it cannot show that a new model is better on the drifted data.
+
+I decided to keep this logic and state the limit instead of patching it, because every fix I
+checked either needs more labels or brings in a new bias:
+
+| Idea | What I measured / found | Why not now |
+| --- | --- | --- |
+| Lower the minimum of 10 / 20 missed frauds | – | the decision would be pure noise (my first realistic run rejected a candidate on 0 vs 1 audited case) |
+| Audit that prefers higher scores (same 5 % budget, inverse-probability weights) | recall error per 4 weeks only ±10 → ±8 pp | still not usable |
+| Fixed, fully labelled reference set (`reserve.csv`, 588 frauds) as a regression test | catches broken models with ±1–1.5 pp, but has none of the drift (true recall 37–62 %, reserve recall 58 → 51 %) | favours models that keep the old patterns; would not change any decision of the last run |
+| Rolling evaluation set (reserve + held-back audit rows) | ~14 audited frauds a month → still ~85 % old data after a year | costs the only unbiased training labels for missed fraud |
+| **Review hit rate** (share of reviewed cases that are fraud) as a performance signal | measured exactly every week, ±1 pp per 4 weeks; falls from ~12 % to 8–10 % in the camouflage months although the fraud rate rises | next step for monitoring |
+| **Champion/challenger in shadow mode**, reviewing the cases only one model flags | ~1 % extra reviews give ~10 labelled frauds per 4 weeks that the champion missed → a fair paired comparison | next step for the gate |
+
+With all labels none of this is needed: the holdout has ~65 labelled missed frauds and the
+monitor ~130, so both comparisons work (only the noise of about ±3–4 pp on a 14-day holdout
+remains).
+
 ## 7. Problems I found on the way (and fixed)
 
 1. **A wrong recall of 100 %:** week 18 of the first realistic run — no audited fraud in the window,

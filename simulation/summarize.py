@@ -94,6 +94,7 @@ EXPORT_COLUMNS = [
     "customer_age", "served_model_version", "served_probability", "served_threshold", "served_flagged",
     "frozen_v1_probability", "frozen_v1_threshold", "frozen_v1_flagged",
     "frozen_v1_workload_threshold", "frozen_v1_workload_flagged",
+    "camouflaged", "incident",
 ]
 
 
@@ -119,6 +120,10 @@ def applications_table(served, frozen_probabilities, frozen_threshold, workload_
     table["frozen_v1_flagged"] = np.asarray(frozen_probabilities) >= frozen_threshold
     table["frozen_v1_workload_threshold"] = workload_thresholds
     table["frozen_v1_workload_flagged"] = np.asarray(workload_flags, dtype=bool)
+    # Which rows the scenario changed (camouflaged fraud, mobile-form incident).
+    # The system never sees these flags; I only keep them for the charts.
+    for column in ("camouflaged", "incident"):
+        table[column] = served[column].astype(bool) if column in served else False
     return table[EXPORT_COLUMNS].reset_index(drop=True)
 
 
@@ -146,7 +151,11 @@ def load_truth():
     files = sorted((PROJECT_DIR / "data" / "simulation" / "labels").glob("month_*.csv"))
     truth = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
     truth["label_available_at"] = pd.to_datetime(truth["label_available_at"])
-    return truth[["application_id", "fraud_bool", "label_available_at"]]
+    # Label files from before the flags were saved do not have these columns.
+    for column in ("camouflaged", "incident"):
+        if column not in truth:
+            truth[column] = False
+    return truth[["application_id", "fraud_bool", "label_available_at", "camouflaged", "incident"]]
 
 
 def true_performance(served, as_of, days=28):

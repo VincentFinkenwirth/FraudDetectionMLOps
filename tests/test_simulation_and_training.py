@@ -139,6 +139,13 @@ class AuditAndWorkloadTests(unittest.TestCase):
         self.assertEqual(table["label_source"].tolist()[2], "audit")
         self.assertEqual(table["frozen_v1_flagged"].tolist(), [True, False, False])
         self.assertEqual(table["served_model_version"].tolist(), ["v1", "v1", "v2"])
+        # without the scenario flags (old label files) both columns are simply False
+        self.assertFalse(table["camouflaged"].any() or table["incident"].any())
+        flagged = applications_table(served.assign(camouflaged=[True, False, False], incident=[False, False, True]),
+                                     np.array([0.8, 0.2, 0.1]), 0.5, np.array([True, False, False]),
+                                     np.array([0.6, 0.6, 0.15]), labels_seen)
+        self.assertEqual(flagged["camouflaged"].tolist(), [True, False, False])
+        self.assertEqual(flagged["incident"].tolist(), [False, False, True])
 
 
 class TrainingHelperTests(unittest.TestCase):

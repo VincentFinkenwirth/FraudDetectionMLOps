@@ -34,6 +34,8 @@ def make_result_folder(folder, realistic, seed=0):
         "served_probability": served, "served_threshold": 0.6, "served_flagged": served >= 0.6,
         "frozen_v1_probability": frozen, "frozen_v1_threshold": 0.6, "frozen_v1_flagged": frozen >= 0.6,
         "frozen_v1_workload_threshold": 0.55, "frozen_v1_workload_flagged": frozen >= 0.55,
+        # half of the fraud is camouflaged from month 2 on, the incident is in month 3
+        "camouflaged": fraud & (week > 4) & (rng.random(n) < 0.5), "incident": (week > 8) & (rng.random(n) < 0.3),
     })
     if realistic:
         # only flagged applications and a few random ones get a label
@@ -108,6 +110,7 @@ class PipelineTests(unittest.TestCase):
             "compare/full-system_vs_full-fast_loop/paired_difference.png",
             "compare/full-system_vs_full-fast_loop/monthly_numbers.csv",
             "compare/full-system_vs_real_a-system/cumulative_caught.png",
+            "compare/full-system_vs_full-fast_loop/recall_by_fraud_type.png",
             "compare/label_modes_recall.png",
         ]
         for path in expected:

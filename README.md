@@ -107,7 +107,7 @@ docker compose exec -w /project jenkins python -m simulation.summarize --output 
 ```
 
 By default every application gets its true label 4 weeks later. `--label-mode realistic`
-only labels the flagged (reviewed) applications plus a random 2 % audit of the others,
+only labels the flagged (reviewed) applications plus a random 5 % audit of the others,
 weighted by 1 / audit share; the rest stays unknown. `--audit-seed N` draws the audit sample
 with another seed. See section 6 of RESULTS.md.
 
@@ -166,7 +166,7 @@ drift. Every drift type keeps the rows consistent:
 | Months | Injected change | Type | Expected signal |
 | --- | --- | --- | --- |
 | 1–2 | none (control) | – | nothing |
-| 3–12 | "downturn": rows kept depending on income and address (rejection sampling), and more applications (16,000 → 20,000 per month) | covariate shift | small — should *not* alarm |
+| 3–12 | "downturn": applicants with above-median income and time at the address are dropped more often (rejection sampling), and more applications (20,000 → 25,000 per month) | covariate shift | small — should *not* alarm |
 | 4–12 | some legitimate rows dropped | prior shift | fraud rate ↑ |
 | 5–12 | new credit bureau: `credit_risk_score` + 600 | upstream change | PSI on an important feature, alert rate |
 | 7–12 | 20–50 % of fraud cases copy normal applicants' top signals | concept drift | almost invisible in the data → only delayed labels |
@@ -238,9 +238,13 @@ Full year in [RESULTS.md](RESULTS.md). In short (all labels, 229,000 application
 
 - BAF is synthetic bank-account data, used as a stand-in for benefit applications.
   Some features (e.g. `velocity_6h`) need a backend that computes them at request time.
-- In reality only reviewed applications get a label (selection bias). The main run releases
-  labels for all applications; the realistic label mode shows that a 2 % audit is then far too
-  small to measure recall or to show that a new model is better (RESULTS.md, section 6).
+- **Open issue (outside the scope of this project): recall with realistic labels.** In reality only
+  reviewed applications get a label (selection bias). The main run releases labels for all
+  applications; the realistic label mode shows that even a 5 % random audit finds only ~8 missed
+  frauds per 4 weeks, while the monitor needs 20 and the promotion gate 10. So with realistic labels
+  recall is never measured, the performance trigger cannot fire and the gate can only stop clearly
+  broken models, not pick the better one. I keep this logic on purpose (it refuses to act on noise)
+  and describe the possible fixes in RESULTS.md, section 6.
 - The workload threshold keeps the number of reviews flat; in a real fraud wave more reviews
   might be needed (the alert-rate signal and the share of reviews that find fraud show it).
 - The model flags legitimate applicants aged 50+ about four times as often as younger

@@ -175,6 +175,9 @@ def series(runs, spec):
     frame = apps[["application_id", "month", "sim_week", "fraud_bool", "customer_age"]].copy()
     frame["flagged"] = apps[MODELS[model]["flag"]].astype(bool)
     frame["probability"] = apps[MODELS[model]["probability"]]
+    # Result folders from before the fourth version do not have this flag.
+    if "camouflaged" in apps:
+        frame["camouflaged"] = apps["camouflaged"].astype(bool)
     return frame
 
 
@@ -648,6 +651,35 @@ def paired_difference(paired, labels, scenario, path):
         save(fig, path)
 
 
+def recall_by_fraud_type(a, b, labels, scenario, path):
+    """Recall on normal and on camouflaged fraud, per month.
+
+    The camouflage is invisible for the data monitoring, so this shows directly
+    whether retraining learned the new pattern - and whether the overall drop in
+    recall comes from the camouflaged cases or from all fraud.
+    """
+    if "camouflaged" not in a or "camouflaged" not in b or not (a["camouflaged"] & (a["fraud_bool"] == 1)).any():
+        return
+    with style():
+        fig, axes = plt.subplots(1, 2, figsize=(1664 * PX, 680 * PX), sharey=True)
+        for ax, camouflaged, heading in ((axes[0], False, "Normal fraud"), (axes[1], True, "Camouflaged fraud")):
+            tables = [monthly_metrics(frame[frame["camouflaged"] == camouflaged]) for frame in (a, b)]
+            # A month with very few camouflaged frauds is only noise, so I need at least 20.
+            tables = [table[table["frauds"] >= 20] for table in tables]
+            for table, line, label in ((tables[0], FIRST, labels[0]), (tables[1], SECOND, labels[1])):
+                ax.plot(table["month"], table["recall"], **line, label=label, zorder=3)
+            event_marks(ax, scenario, labels=camouflaged)
+            month_axis(ax, a["month"].unique())
+            ax.set_ylim(0, 1.05)
+            ax.yaxis.set_major_formatter(pct())
+            frauds = int(((a["fraud_bool"] == 1) & (a["camouflaged"] == camouflaged)).sum())
+            ax.set_title(f"{heading} ({frauds:,} cases)", loc="left", color=INK, fontsize=19, pad=12)
+        axes[0].set_ylabel("True recall")
+        axes[0].legend(loc="lower left")
+        fig.tight_layout(w_pad=3)
+        save(fig, path)
+
+
 def cumulative_caught(a, b, labels, scenario, path):
     """Caught frauds added up week by week; small monthly gaps become visible."""
     weekly = pd.DataFrame({
@@ -745,6 +777,7 @@ def compare(runs, spec_a, spec_b, output):
     detected_fraud(table_a, table_b, labels, scenario, folder / "detected_fraud.png")
     paired_difference(paired, labels, scenario, folder / "paired_difference.png")
     cumulative_caught(a, b, labels, scenario, folder / "cumulative_caught.png")
+    recall_by_fraud_type(a, b, labels, scenario, folder / "recall_by_fraud_type.png")
     overview(table_a, table_b, labels, scenario, review_plan, folder / "overview.png")
 
 
