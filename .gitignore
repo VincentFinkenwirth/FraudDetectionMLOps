@@ -16,14 +16,11 @@ tmp/
 *.egg-info/
 catboost_info/
 
-# Keep the repository focused on implementation and runtime configuration.
-tests/
-test_*.py
-*_test.py
+# Keep the repository focused on implementation, tests and documentation.
+# Results, charts and the presentation (docs/) stay local.
 docs/
 task/
 tasks/
-*.md
 *.ipynb
 *.pdf
 *.ppt
