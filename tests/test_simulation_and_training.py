@@ -6,7 +6,7 @@ import pandas as pd
 
 from baseline import build_baseline
 from preprocessing import TARGET_COLUMN, prepare_dataset
-from simulation.build_months import build_all
+from simulation.build_months import build_all, keep_probability
 from simulation.replay import redraw_audit
 from simulation.summarize import EXPORT_COLUMNS, applications_table, frozen_workload_flags
 from train import calibrated_config, select_threshold_at_fpr, train_model, use_cpu
@@ -52,6 +52,13 @@ class SimulationTests(unittest.TestCase):
         self.assertGreater(self.months[2][TARGET_COLUMN].mean(), self.months[1][TARGET_COLUMN].mean())
         # Richer applicants are dropped more often -> lower average income
         self.assertLess(self.months[2]["income"].mean(), self.months[1]["income"].mean())
+
+    def test_downturn_only_drops_the_upper_half(self):
+        # Applicants below the median income / time at the address are never dropped by
+        # the downturn, the richest ones are dropped with probability "downturn".
+        batch = pd.DataFrame({"income_rank": [0.1, 0.5, 0.75, 1.0], "address_rank": [0.2, 0.5, 0.75, 1.0],
+                              TARGET_COLUMN: 0})
+        np.testing.assert_allclose(keep_probability(batch, {"downturn": 0.8}), [1.0, 1.0, 0.6, 0.2])
 
     def test_planned_volume_per_month(self):
         scenario = {**SCENARIO, "months": [{"month": 1, "rows": 500}, {"month": 2, "rows": 700}]}

@@ -62,7 +62,7 @@ def redraw_audit(labels, seed, share, weeks_per_month):
     """Draw the random audit sample again with another seed.
 
     The applications and their true labels stay exactly the same; only WHICH
-    unflagged applications are checked by hand changes. With a 2 % audit only
+    unflagged applications are checked by hand changes. With a small audit only
     a handful of missed frauds are found per month, so one realistic run could
     be luck. Repeating the year with other audit seeds shows how much the
     results depend on this random sample.
@@ -235,7 +235,7 @@ def main():
     start = datetime.fromisoformat(scenario["start_date"])
     applications, labels = load_simulation(args.data)
     if args.audit_seed is not None:
-        labels = redraw_audit(labels, args.audit_seed, scenario.get("audit_share", 0.02), scenario["weeks_per_month"])
+        labels = redraw_audit(labels, args.audit_seed, scenario.get("audit_share", 0.05), scenario["weeks_per_month"])
         print(f"Audit sample drawn with seed {args.audit_seed}: {labels['audited'].sum():,} applications")
     last_week = args.last_week or int(applications["sim_week"].max()) + args.extra_label_weeks
 
@@ -270,7 +270,7 @@ def main():
                 file.writelines(f"{app_id}\n" for app_id in new_flags)
             flagged = len(new_flags)
             week_labels = select_labels(labels[labels["label_week"] == week], args.label_mode, flagged_ids,
-                                        scenario.get("audit_share", 0.02))
+                                        scenario.get("audit_share", 0.05))
             released = release_labels(session, api_url, keys["labels"], week_labels) if len(week_labels) else 0
 
             result = runner.run(as_of) if runner else {"decision": "not run"}

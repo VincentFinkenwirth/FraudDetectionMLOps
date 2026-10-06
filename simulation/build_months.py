@@ -9,9 +9,13 @@ mechanism that keeps the rows consistent:
 
 - Covariate shift ("downturn"): rows are *dropped* with a probability that
   depends on the features (rejection sampling). The link between features and
-  fraud stays the same, only the mix of applicants changes.
+  fraud stays the same, only the mix of applicants changes. Only applicants
+  with an above-median income / time at the address can be dropped (see
+  keep_probability), so the downturn costs much less of the pool.
 - Prior shift ("drop_legit"): some legitimate rows are dropped, so the share of
   fraud goes up. This matches the story in the task (more fraud suspicions).
+  It is also needed because the downturn alone LOWERS the fraud rate a bit
+  (in BAF the applicants with a high income commit fraud more often).
 
 Volume: every month has a planned number of applications ("rows" in the
 scenario). The script walks through the pool in its original order and keeps
@@ -20,8 +24,11 @@ continues where the last one stopped. In my first version every month started
 from a fixed block of 30,000 rows, so the dropped rows were simply missing and
 the months shrank to ~18,000 during the downturn - although in a real downturn
 MORE people apply for benefits. Now the downturn months are the biggest ones:
-16,000 applications per month before, up to 20,000 during the downturn. They
+20,000 applications per month before, up to 25,000 during the downturn. They
 just use up more of the pool, because more rows are rejected.
+(The second version dropped rows along the whole income range and only
+reached 16,000 -> 20,000: it kept 60 % of the rows it looked at, for a shift
+in income that was smaller than the natural drift of the BAF months.)
 - Upstream change ("score_offset"): from month 5 a new credit bureau reports
   credit_risk_score on another scale. The applicants are the same, but the
   model's learned split points no longer fit. Data monitoring sees this at
@@ -81,7 +88,12 @@ def keep_probability(batch, spec):
     downturn = spec.get("downturn", 0.0)
     if downturn:
         # High income and a long time at the current address -> more likely to be dropped.
-        keep *= 1 - downturn * (0.5 * batch["income_rank"].to_numpy() + 0.5 * batch["address_rank"].to_numpy())
+        # I only drop rows above the median: in my first try every row except the
+        # very poorest could be dropped, which wasted ~30 % of the pool on average
+        # applicants. Dropping only the upper half moves the mean income just as
+        # much and keeps ~88 % of the rows (downturn 0.8).
+        score = 0.5 * batch["income_rank"].to_numpy() + 0.5 * batch["address_rank"].to_numpy()
+        keep *= 1 - downturn * np.clip((score - 0.5) / 0.5, 0, 1)
 
     drop_legit = spec.get("drop_legit", 0.0)
     if drop_legit:

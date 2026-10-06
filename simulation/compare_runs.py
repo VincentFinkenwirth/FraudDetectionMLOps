@@ -3,7 +3,7 @@
     python -m simulation.compare_runs --run all_labels=work/docker_reports \
         --run realistic_a=work/runs/realistic_a/report --run realistic_b=work/runs/realistic_b/report
 
-I use it for the realistic label mode: one run with a 2 % audit could be luck,
+I use it for the realistic label mode: one run with a small audit could be luck,
 so I repeated the year with three different audit samples and look at the
 range of the results instead of one number.
 """

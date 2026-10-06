@@ -64,9 +64,9 @@ def to_jsonable(value):
 def effective_count(weights):
     """Kish's effective sample size: how many equally weighted cases the rows are worth.
 
-    100 reviewed fraud cases (weight 1 each) are worth 100. Two audited fraud
-    cases with weight 50 also "stand for" 100 cases, but they are only worth
-    about 2 - a recall estimate from them is almost pure noise.
+    100 reviewed fraud cases (weight 1 each) are worth 100. Five audited fraud
+    cases with weight 20 (5 % audit) also "stand for" 100 cases, but they are
+    only worth about 5 - a recall estimate from them is almost pure noise.
     """
     weights = np.asarray(weights, dtype=float)
     return float(weights.sum() ** 2 / (weights ** 2).sum()) if len(weights) else 0.0
