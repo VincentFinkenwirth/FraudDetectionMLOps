@@ -44,6 +44,9 @@ jobs:
           }
         }
       }
+      // Run CI once at every start-up: polling only starts after a first build,
+      // and the monitor/retrain jobs need a release before they can run.
+      queue('fraud-ci')
       pipelineJob('fraud-monitor') {
         description('Weekly monitoring of drift, data quality and performance. Starts fraud-retrain when needed.')
         parameters {
