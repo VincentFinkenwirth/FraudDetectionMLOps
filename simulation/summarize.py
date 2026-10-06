@@ -309,6 +309,12 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
 
     config = load_json("configs/monitoring.json")
+    # I keep the scenario and the monitoring settings of THIS run next to the
+    # results. simulation.plot_results reads them from here, so the charts still
+    # show the right events, audit share and review plan after I change the
+    # configs for the next run.
+    for name, path in (("scenario.json", "configs/drift_scenario.json"), ("monitoring.json", "configs/monitoring.json")):
+        (args.output / name).write_text(json.dumps(load_json(path), indent=2) + "\n", encoding="utf-8")
     start = parse_time(config["simulation_start"])
     engine = db.get_engine()
     # Every served prediction (first one per application) joined with the TRUE label.

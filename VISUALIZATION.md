@@ -175,6 +175,39 @@ An FPR limit is a reference for future batches, not a guarantee.
 Exports use [Matplotlib's figure saving API](https://matplotlib.org/stable/api/_as_gen/matplotlib.figure.Figure.savefig.html)
 and [MLflow's artifact logging API](https://mlflow.org/docs/latest/api_reference/python_api/mlflow.html#mlflow.log_artifact).
 
+## Charts of the simulated year (after all runs)
+
+`simulation/plot_results.py` makes every result chart from saved result folders
+only (the output of `simulation.summarize`). It needs no API, MLflow or model, so
+the runs can finish first and the charts are made afterwards, as often as needed.
+Copy each run's summarize output to `docs/results/all_labels` and
+`docs/results/realistic_labels/<name>`, then:
+
+```powershell
+python -m simulation.plot_results                      # all folders in docs/results
+python -m simulation.plot_results --run all_labels=docs/results/all_labels `
+    --run audit_a=docs/results/realistic_labels/audit_sample_a `
+    --compare all_labels:system,audit_a:system --no-monthly-matrices
+```
+
+The three models are `system` (served scores), `fast_loop` (frozen v1 + weekly
+threshold) and `no_mlops` (frozen v1, fixed threshold); a series is `run:model`.
+The first series of a comparison is orange, the second black (dashed, square
+markers). Output in `docs/presentation/results/`:
+
+- per run: a confusion matrix per month and model plus a 12-month overview,
+  "what the system saw" (realistic runs: labelled rows only), labels per month,
+  fraud caught/missed, belief vs true recall, feature PSI heatmap, model timeline,
+  weekly review share and threshold;
+- per comparison: recall with 95 % band, caught fraud, FPR, precision, workload,
+  recall at equal workload, FPR ratio by age, frauds only one model caught (with
+  McNemar test), cumulative caught fraud, a 2 × 2 overview and `monthly_numbers.csv`;
+- with one all-label run and at least two realistic runs: recall with the range
+  of the audit samples.
+
+`summarize` saves `scenario.json` and `monitoring.json` with each run, so the event
+lines, audit share and review plan stay correct when the configs change later.
+
 ## Verification
 
 ```powershell
