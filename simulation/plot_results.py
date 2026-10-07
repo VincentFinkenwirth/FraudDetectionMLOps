@@ -62,6 +62,7 @@ PX = 1 / 100              # 1 inch = 100 slide pixels
 
 DPI = 200
 SLIDES = False            # True after slide_theme()
+SMALL = 13                # font size of notes inside a chart
 
 FIRST = dict(color=ORANGE, lw=3, marker="o", ms=7)
 SECOND = dict(color=INK, lw=2.5, ls="--", marker="s", ms=6)
@@ -91,7 +92,8 @@ def style():
         "axes.spines.top": False, "axes.spines.right": False,
         "axes.grid": True, "axes.grid.axis": "y", "grid.color": GRID, "grid.linewidth": 1,
         "xtick.color": TEXT, "ytick.color": TEXT, "xtick.labelsize": 17, "ytick.labelsize": 17,
-        "legend.frameon": False, "legend.fontsize": 16,
+        "legend.frameon": SLIDES, "legend.facecolor": SURFACE, "legend.edgecolor": SURFACE,
+        "legend.framealpha": 1, "legend.fontsize": 16,
         "lines.linewidth": 2.5, "lines.solid_capstyle": "round",
     })
 
@@ -101,11 +103,12 @@ def slide_theme():
     bigger text. The slide already has a heading, so the charts get no title.
 
     PX is what makes the text bigger: a figure of 1180 slide pixels is now
-    1180/140 inch instead of 1180/100, so every font size (in points) takes
-    1.4 times more of the chart. DPI goes up by the same factor, so the PNG
-    keeps the same number of pixels."""
+    1180/115 inch instead of 1180/100, so every font size (in points) takes
+    1.15 times more of the chart. DPI goes up by the same factor, so the PNG
+    keeps the same number of pixels. (1.4 was too much: the plots got small
+    and the lines heavy, the text was bigger than the text on the slide.)"""
     global ORANGE, ORANGE_WASH, INK, TEXT, MUTED, GRID, BAND, SURFACE, PX, DPI, SLIDES, FIRST, SECOND
-    global EVENT_NAMES, INCIDENT_NAME
+    global EVENT_NAMES, INCIDENT_NAME, SMALL
     ORANGE = "#EA6A12"
     ORANGE_WASH = "#FBE1CD"
     INK = "#1F2328"
@@ -114,19 +117,25 @@ def slide_theme():
     GRID = "#E3E6EA"
     BAND = "#F2F3F5"
     SURFACE = "#FFFFFF"
-    PX = 1 / 140
-    DPI = 280
+    PX = 1 / 115
+    DPI = 230
     SLIDES = True
-    # with the bigger text the two-line names overlap (the changes are only 2 months apart)
-    EVENT_NAMES = {"downturn": "downturn", "score_offset": "new scale", "camouflage": "camouflage"}
+    # event_marks puts every second name lower, so they don't touch; the long one
+    # gets two lines, otherwise it runs over the camouflage line
+    EVENT_NAMES = {"downturn": "downturn", "score_offset": "new credit-\nbureau scale",
+                   "camouflage": "fraud camouflage"}
     INCIDENT_NAME = "form bug"
-    FIRST = dict(color=ORANGE, lw=4, marker="o", ms=8)
-    SECOND = dict(color=INK, lw=3, ls="--", marker="s", ms=7)
+    SMALL = 15      # notes in the chart, 15 pt = 24 px on the slide
+    FIRST = dict(color=ORANGE, lw=3, marker="o", ms=6)
+    SECOND = dict(color=INK, lw=2.5, ls="--", marker="s", ms=5)
 
 
 def save(fig, path):
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=DPI)
+    if SLIDES:
+        fig.savefig(path, dpi=DPI, bbox_inches="tight", pad_inches=0.03)
+    else:
+        fig.savefig(path, dpi=DPI)
     plt.close(fig)
     print(f"saved {path.relative_to(PROJECT_DIR) if path.is_relative_to(PROJECT_DIR) else path}")
 
@@ -141,6 +150,15 @@ def title(ax, text, subtitle=None):
     ax.set_title(text, loc="left", color=INK, fontsize=20, pad=34 if subtitle else 12)
     if subtitle:
         ax.text(0, 1.02, subtitle, transform=ax.transAxes, color=TEXT, fontsize=15, va="bottom")
+
+
+def legend(ax, **normal):
+    """Legend as given; on slides in one row above the plot, away from the
+    event lines and their names."""
+    if SLIDES:
+        ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncols=2, borderaxespad=0.2, columnspacing=2.5)
+    else:
+        ax.legend(**normal)
 
 
 # ---------------------------------------------------------------- loading
@@ -307,15 +325,19 @@ def event_marks(ax, scenario, unit="month", labels=True, band=True):
     for i, (month, label) in enumerate(starts):
         ax.axvline(edge(month), color=MUTED, lw=1.2, zorder=1)
         # on slides every second name sits a bit lower, so neighbours don't touch
-        height = 0.98 - 0.09 * (i % 2) if SLIDES else 0.98
+        height = 0.98 - 0.08 * (i % 2) if SLIDES else 0.98
+        # on slides a white box behind the name hides the next line if the name is longer
+        box = dict(facecolor=SURFACE, edgecolor="none", pad=1) if SLIDES else None
         if labels:
             ax.text(edge(month) + 0.08 * per, height, label, transform=ax.get_xaxis_transform(), color=TEXT,
-                    fontsize=13, va="top", ha="left")
+                    fontsize=SMALL, va="top", ha="left", bbox=box, zorder=2)
     if incident and band:
         ax.axvspan(edge(incident[0]), edge(incident[-1] + 1), color=BAND, lw=0, zorder=0)
         if labels:
-            ax.text(edge(incident[0]) + 0.08 * per, 0.98, INCIDENT_NAME,
-                    transform=ax.get_xaxis_transform(), color=TEXT, fontsize=13, va="top", ha="left")
+            # the incident continues the up/down order of the other names
+            height = 0.98 - 0.08 * (len(starts) % 2) if SLIDES else 0.98
+            ax.text(edge(incident[0]) + 0.08 * per, height, INCIDENT_NAME,
+                    transform=ax.get_xaxis_transform(), color=TEXT, fontsize=SMALL, va="top", ha="left")
 
 
 def month_axis(ax, months):
@@ -470,13 +492,15 @@ def believed_vs_true_recall(run, output):
                   & (weekly["missed_fraud_labels"] >= monitoring["min_missed_fraud_labels"]))
     with style():
         fig, ax = plt.subplots(figsize=(1180 * PX, 620 * PX))
-        ax.plot(weekly["week"], weekly["served_recall_last_28_days_of_labels"], **{**FIRST, "ms": 5},
+        dots = {"marker": None} if SLIDES else {}   # 48 weeks: markers only make the line heavy
+        ax.plot(weekly["week"], weekly["served_recall_last_28_days_of_labels"], **{**FIRST, "ms": 5, **dots},
                 label="what the system believed")
-        ax.plot(weekly["week"], weekly["true_recall_last_28_days"], **{**SECOND, "ms": 4}, label="true recall")
+        ax.plot(weekly["week"], weekly["true_recall_last_28_days"], **{**SECOND, "ms": 4, **dots},
+                label="true recall")
         if "min_served_recall" in monitoring:   # older runs had a relative rule instead
             ax.axhline(monitoring["min_served_recall"], color=MUTED, lw=1.2, ls=":")
             ax.text(weekly["week"].max() + 0.6, monitoring["min_served_recall"], "retrain\nbelow", color=TEXT,
-                    fontsize=13, va="center")
+                    fontsize=SMALL, va="center")
         event_marks(ax, run["scenario"], unit="week")
         ax.set_ylim(0, 1.15)
         ax.yaxis.set_major_formatter(pct())
@@ -484,7 +508,7 @@ def believed_vs_true_recall(run, output):
         ax.set_ylabel("Recall (labels of 28 days)")
         title(ax, "Recall: belief vs truth",
               f"recall measurable by the monitor in {int(measurable.sum())} of {len(weekly)} weeks")
-        ax.legend(loc="lower left")
+        legend(ax, loc="lower left")
         fig.tight_layout()
         save(fig, output / "believed_vs_true_recall.png")
 
@@ -515,6 +539,41 @@ def labels_per_month(run, output):
         ax.legend(loc="upper left", bbox_to_anchor=(0, 0.82), ncols=3)
         fig.tight_layout()
         save(fig, output / "labels_per_month.png")
+
+
+def drift_signals(run, output):
+    """The two data-drift rules of the weekly job: largest PSI on an important
+    feature (log scale) and the importance-weighted drift share."""
+    weekly = run["weekly"]
+    if weekly.empty or "max_psi_important_feature" not in weekly:
+        return
+    weekly = weekly.dropna(subset=["max_psi_important_feature"]).sort_values("week")
+    monitoring = run["monitoring"]
+    with style():
+        fig, (top, bottom) = plt.subplots(2, 1, figsize=(1180 * PX, 720 * PX), sharex=True,
+                                          gridspec_kw={"height_ratios": [1.4, 1]})
+        dots = {"marker": None} if SLIDES else {"ms": 5}
+        top.plot(weekly["week"], weekly["max_psi_important_feature"], **{**FIRST, **dots},
+                 label="largest PSI on an important feature")
+        top.axhline(monitoring["important_feature_psi_threshold"], color=MUTED, lw=1.2, ls=":")
+        top.text(weekly["week"].max() + 0.6, monitoring["important_feature_psi_threshold"], "alarm", color=TEXT,
+                 fontsize=SMALL, va="center")
+        top.set_yscale("log")
+        top.set_ylim(0.001, 300)   # room at the top for the event names
+        top.set_yticks([0.01, 0.1, 1, 10], ["0.01", "0.1", "1", "10"])
+        top.set_ylabel("PSI")
+        event_marks(top, run["scenario"], unit="week")
+        bottom.plot(weekly["week"], weekly["drift_share"], **{**SECOND, **dots}, label="drift share")
+        bottom.axhline(monitoring["drift_share_threshold"], color=MUTED, lw=1.2, ls=":")
+        bottom.text(weekly["week"].max() + 0.6, monitoring["drift_share_threshold"], "alarm", color=TEXT,
+                    fontsize=SMALL, va="center")
+        bottom.set_ylim(0, 0.6)
+        bottom.set_ylabel("Drift share")
+        bottom.set_xlabel("Simulated week")
+        event_marks(bottom, run["scenario"], unit="week", labels=False)
+        title(top, "Data drift per week", "two of the drift rules of the weekly job, thresholds dotted")
+        fig.tight_layout()
+        save(fig, output / "drift_signals.png")
 
 
 def psi_heatmap(run, output, top=12):
@@ -589,15 +648,16 @@ def review_share_and_threshold(run, output):
         # short legend on slides, the long one does not fit with the bigger text
         names = ("full system", "no MLOps") if SLIDES else \
             ("full system (weekly threshold)", "no MLOps (fixed threshold)")
-        top.plot(weekly.index, weekly["system"], **{**FIRST, "ms": 5}, label=names[0])
-        top.plot(weekly.index, weekly["fixed"], **{**SECOND, "ms": 4}, label=names[1])
+        dots = {"marker": None} if SLIDES else {}
+        top.plot(weekly.index, weekly["system"], **{**FIRST, "ms": 5, **dots}, label=names[0])
+        top.plot(weekly.index, weekly["fixed"], **{**SECOND, "ms": 4, **dots}, label=names[1])
         top.axhline(plan, color=MUTED, lw=1.2, ls=":")
-        top.text(weekly.index.max() + 0.6, plan, f"plan\n{plan:.1%}", color=TEXT, fontsize=13, va="center")
+        top.text(weekly.index.max() + 0.6, plan, f"plan\n{plan:.1%}", color=TEXT, fontsize=SMALL, va="center")
         # extra room at the top, so the legend sits above the lines
         top.set_ylim(0, max(weekly["fixed"].max(), weekly["system"].max()) * 1.8)
         top.yaxis.set_major_formatter(pct())
         top.set_ylabel("Sent to review")
-        top.legend(loc="upper left", bbox_to_anchor=(0, 0.86), ncols=2)
+        legend(top, loc="upper left", bbox_to_anchor=(0, 0.86), ncols=2)
         event_marks(top, run["scenario"], unit="week")
         bottom.plot(weekly.index, weekly["threshold"], color=ORANGE, lw=2.5, drawstyle="steps-mid")
         bottom.set_ylabel("Threshold")
@@ -701,7 +761,7 @@ def recall_by_fraud_type(a, b, labels, scenario, path):
     if "camouflaged" not in a or "camouflaged" not in b or not (a["camouflaged"] & (a["fraud_bool"] == 1)).any():
         return
     with style():
-        fig, axes = plt.subplots(1, 2, figsize=(1664 * PX, 680 * PX), sharey=True)
+        fig, axes = plt.subplots(1, 2, figsize=(1664 * PX, 600 * PX), sharey=True)
         for ax, camouflaged, heading in ((axes[0], False, "Normal fraud"), (axes[1], True, "Camouflaged fraud")):
             tables = [monthly_metrics(frame[frame["camouflaged"] == camouflaged]) for frame in (a, b)]
             # A month with very few camouflaged frauds is only noise, so I need at least 20.
@@ -881,6 +941,7 @@ def main():
         outcomes_per_month(run, output)
         believed_vs_true_recall(run, output)
         psi_heatmap(run, output)
+        drift_signals(run, output)
         model_timeline(run, output)
         review_share_and_threshold(run, output)
 
