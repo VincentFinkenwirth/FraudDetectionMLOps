@@ -1,22 +1,26 @@
 # Results of the simulated year
 
-Final runs on 29 September 2026 with the second version of the pipeline (section 1):
+Final runs on 7 October 2026 with the fourth version of the pipeline (changes in section 1),
+after a full reset (`docker compose down -v`, fresh `models/` with only v1):
 
 - **All labels:** through the Docker Compose stack with Jenkins as the MLOps platform
-  (`python -m simulation.replay --pipeline jenkins`: 52 `fraud-monitor` builds, 12 `fraud-retrain`
-  builds with training).
+  (`python -m simulation.replay --pipeline jenkins`: 52 `fraud-monitor` builds, none failed;
+  14 `fraud-retrain` builds with training). Jenkins ran the commit that `fraud-ci` had tested and
+  released (`6ce6e54`).
 - **Realistic labels:** three runs with different random audit samples
-  (`bash work/runs/run_local.sh realistic_a 8101 realistic`, seeds 1 and 2 for b and c), each with its
-  own API, database and models folder.
+  (`bash work/runs/run_local.sh realistic_a_v4 8101 realistic`, seeds 1 and 2 for b and c), each with
+  its own API, database and models folder.
 
-52 simulated weeks: 48 weeks of applications (**229,000** in total, 1.28 % fraud; 16,000 per month
-before the downturn, 20,000 during it) plus 4 weeks in which only the last labels arrive. Labels
-always arrive 4 weeks late. Tables: [docs/results/](docs/results/), charts:
-[docs/results/charts/](docs/results/charts/) (one chart per month in `charts/months/`) and
-[docs/guide/](docs/guide/). The numbers of the **first version** (the ones in the current slides)
-are in section 8.
+52 simulated weeks: 48 weeks of applications (**286,300** in total, 1.20 % fraud; 20,000 per month
+before the downturn, 25,000 during it) plus 4 weeks in which only the last labels arrive. Labels
+always arrive 4 weeks late. Tables: [docs/results/](docs/results/) (stays local). All charts are in
+[charts/](charts/) and are made only from the result folders with `python -m simulation.plot_results`
+(one folder per run, `charts/compare/` for the comparisons, see VISUALIZATION.md). The numbers of the
+earlier runs are in section 8.
 
-## 1. What changed after the first runs
+## 1. What changed
+
+### After the first runs (second version)
 
 | Change | Why (what the first runs showed) |
 | --- | --- |
@@ -26,8 +30,17 @@ are in section 8.
 | **Known-fraud check** in the gate | A candidate that caught 24 % instead of 75 % of the reviewed frauds was promoted (see section 7) |
 | **Fixed tree count (377)** instead of early stopping | With realistic labels early stopping kept 1–2 trees in a third of the retrainings |
 | **API reload + confirmation** after a threshold change | In fast local runs only 2 of ~45 threshold changes reached the API in time |
-| **Rising volume** (16,000 → 20,000 per month) | In the first version the downturn made the months *smaller* (30,000 → 17,900) |
 | **Logistic-regression baseline**, **three audit seeds** | To justify CatBoost with a number and to see whether one realistic run is luck |
+
+### For this run (after the runs of 29 September)
+
+| Change | Why |
+| --- | --- |
+| **Audit 2 % → 5 %** of all applications (weight 50 → 20) | With 2 % recall was never measurable (only ~3 audited missed frauds per 4 weeks) |
+| **Tail-only downturn**, months grow from 20,000 to 25,000 | The old downturn threw away 30 % of the pool rows for an income/address PSI of only 0.014 — smaller than the natural drift of BAF. Now only above-median rows are dropped (keeps ~88 % of the rows for the same shift) |
+| **Fixed recall target (49 %)** for the performance trigger | Before, every model was compared with its own holdout recall, which fell with the drift, so the trigger got blind over time |
+| **Calibration check** every week + **recalibration** of every retrained model | The API returns probabilities, so they have to stay probabilities |
+| **CI + release repository**, lineage, lock files | Jenkins only runs tested commits; every bundle records the commit, the SHA-256 of its training data and the library versions |
 
 ## 2. Model before deployment
 
@@ -50,113 +63,145 @@ Baseline (`baseline.py`, same split, same threshold rule, test set):
 
 | Decision (weekly monitoring) | Weeks |
 | --- | ---: |
-| no action | 26 |
-| retrain | 13 |
-| deferred — waiting for (drifted) labels | 9 |
+| no action | 22 |
+| retrain | 16 |
+| deferred — waiting for (drifted) labels | 10 |
 | blocked / quality incident | 4 |
 
-13 retraining decisions: **12 trainings, 10 promoted (v2–v11), 2 rejected**, 1 skipped (week 45:
-not enough labelled data). The threshold was reset every week (except during the incident), the
-API confirmed each change, and it was smoke-tested after every retraining.
+16 retraining decisions: **14 trainings, 11 promoted (v2–v12), 3 rejected**, 2 skipped (weeks 45 and
+46: not enough labelled data outside the quarantined incident weeks). The threshold was reset every
+week (except during the incident), the API confirmed each change, and it was smoke-tested after every
+retraining.
 
 | Week | Trigger | Result |
 | ---: | --- | --- |
-| 7 | schedule | **rejected**: candidate recall 3.2 pp lower |
-| 11, 15, 19 | schedule | promoted (v2, v3, v4) |
-| 22 | data drift + performance | promoted (v5) |
-| 25 | data drift | promoted (v6) |
-| 29, 32 | schedule / performance | promoted (v7, v8) |
-| 35 | data drift | **rejected**: candidate recall 2.0 pp lower |
+| 7, 11, 15 | schedule | **rejected**: candidate recall 2.8 / 2.9 / 4.5 pp lower than v1 (before the scale change the tuned v1 stays better) |
+| 19 | schedule | promoted (v2) |
+| 22 | data drift + performance | promoted (v3) |
+| 25 | data drift | promoted (v4) |
+| 29, 33 | schedule (+ performance) | promoted (v5, v6) |
+| 35 | performance | promoted (v7) |
 | 37–40 | — | **blocked** during the mobile-form incident |
-| 41, 46, 50 | schedule (+ performance) | promoted (v9, v10, v11) |
+| 41 | schedule + performance | promoted (v8) |
+| 43 | performance | promoted (v9), but see below |
+| 45, 46 | performance | **skipped**: not enough labelled data |
+| 47, 49, 51 | (schedule +) performance | promoted (v10, v11, v12) |
+
+![Model timeline](charts/all_labels/model_timeline.png)
+
+v11 and v12 were deployed after the last applications (week 48), so they never scored anything; the
+"served model" line therefore ends at v10.
+
+**A wasted retraining (week 43).** The performance trigger fired again right after the 14-day
+cooldown. The only new labels since v8 came from the incident weeks, which are quarantined, so v9 was
+trained on exactly the same fit and holdout rows as v8 (same gate numbers, +0.00 pp). Harmless (the
+gate promoted an equivalent model), but the "≥ 12,000 new labels" rule should only count labels that
+can actually be used for training. Not fixed in this run.
 
 ## 4. How each injected change was detected
 
-- **Downturn (months 3–12, rejection sampling + more applications):** drift share ≤ 0.034, so no
-  data-drift alarm — as intended. The alert-rate signal fell (z = −5.8 in week 16).
-- **New credit-bureau scale (from week 17):** found in the first week — PSI 8.25 on
-  `credit_risk_score`, alert-rate z = +15.2. **Fast loop:** 16.9 % of the applications were sent to
-  review in week 17 and 5.8 % in week 18 (first version: 12–16 % for 8 weeks). Retraining waited
-  for labels of the new scale (deferred in weeks 17–18) and then updated the model in weeks 19,
-  22 and 25.
-- **Fraudsters' camouflage (months 7–12):** invisible to data monitoring (drift share ≤ 0.035),
-  caught by the delayed-label performance trigger (weeks 32 and 38–41).
-- **Mobile-form incident (month 10):** detected in all four weeks (PSI 2.4–2.6 on `device_os`,
-  30 % unknown device type) → retraining blocked, threshold not changed, weeks quarantined.
+![Review workload and threshold](charts/all_labels/review_share_and_threshold.png)
 
-![Weekly signals](docs/results/charts/weekly_signals.png)
+- **Downturn (months 3–12, tail-only rejection sampling + more applications):** drift share ≤ 0.034
+  until week 13, so no data-drift alarm from the downturn itself — as intended. The alert-rate signal
+  fell (z = −7.8 in week 15). In weeks 14–16 the drift share rose to 0.29–0.43 (PSI 0.20 on
+  `name_email_similarity`): this is the **natural** drift when the pool moves from BAF month 4 to 5,
+  not an injected change. The monitor waited for labels of the drifted period, and the scheduled
+  candidate of week 15 was rejected.
+- **New credit-bureau scale (from week 17):** found in the first week — PSI 8.28 on
+  `credit_risk_score`, alert-rate z = +11.3. **Fast loop:** 14.3 % of the applications were sent to
+  review in week 17 and 5.8 % in week 18; the frozen model with its fixed threshold sent 8–12 % for
+  the rest of the year (9.7 % on average from week 17). Retraining waited for labels of the new scale
+  (deferred in weeks 17–18) and then updated the model in weeks 19, 22 and 25.
+- **Fraudsters' camouflage (months 7–12):** invisible to data monitoring (drift share ≤ 0.034 in
+  weeks 26–36), caught by the delayed-label performance trigger against the fixed 49 % target
+  (weeks 33 and 35, then almost every week from 37 on). The recall over the last 28 days of labels
+  fell from 53 % (week 26) to 35 % (week 40).
+- **Mobile-form incident (month 10):** detected in all four weeks (PSI 2.4–2.6 on `device_os`,
+  29–31 % unknown device type) → retraining blocked, threshold not changed, weeks quarantined.
 
 ## 5. The two loops: what does each one add? (all labels)
 
-Same 229,000 applications, true labels:
+Same 286,300 applications, true labels:
 
 | | Recall | FPR | Sent to review | Recall in top 5 % | Avg. precision | FPR ratio age |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **Both loops** (retrained + workload threshold) | 48.0 % | 5.2 % | 5.8 % | **44.9 %** | **0.149** | 0.29 |
-| Fast loop only (frozen v1 + workload threshold) | 47.2 % | 5.1 % | 5.7 % | 43.9 % | 0.138 | 0.30 |
-| No MLOps (frozen v1, fixed threshold) | 55.5 % | 7.9 % | **8.5 %** | 43.9 % | 0.138 | 0.36 |
+| **Both loops** (retrained + workload threshold) | 48.3 % | 5.2 % | 5.7 % | **44.6 %** | **0.141** | 0.31 |
+| Fast loop only (frozen v1 + workload threshold) | 46.8 % | 5.2 % | 5.7 % | 42.9 % | 0.134 | 0.31 |
+| No MLOps (frozen v1, fixed threshold) | 53.8 % | 7.7 % | **8.3 %** | 42.9 % | 0.134 | 0.36 |
 
 | Month | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| FPR both loops | 4.9 | 4.8 | 5.0 | 4.4 | 7.8 | 4.8 | 5.2 | 5.5 | 5.1 | 5.4 | 4.7 | 5.0 |
-| FPR frozen, fixed | 4.8 | 5.0 | 4.6 | 4.1 | 8.4 | 8.6 | 8.4 | 10.0 | 10.5 | 11.6 | 9.1 | 8.4 |
-| Top-5 % recall both loops | 56.1 | 59.2 | 58.2 | 50.0 | 54.6 | 51.0 | 42.0 | 41.8 | 33.3 | 36.8 | 37.7 | 43.9 |
-| Top-5 % recall fast loop only | 56.1 | 59.2 | 60.2 | 50.0 | 53.8 | 50.2 | 41.6 | 39.2 | 33.7 | 35.1 | 36.5 | 38.6 |
+| FPR both loops | 4.8 | 5.0 | 4.8 | 4.5 | 7.4 | 4.8 | 5.1 | 5.4 | 5.1 | 5.2 | 5.0 | 5.1 |
+| FPR frozen, fixed | 4.8 | 5.0 | 4.2 | 3.3 | 8.5 | 8.3 | 8.3 | 10.1 | 10.0 | 11.1 | 9.0 | 8.3 |
+| Recall both loops | 59.2 | 58.6 | 60.9 | 53.0 | 63.3 | 52.9 | 43.4 | 41.1 | 34.7 | 41.2 | 40.8 | 43.4 |
+| Recall fast loop only | 59.2 | 58.6 | 60.9 | 53.0 | 62.2 | 52.6 | 43.0 | 40.8 | 32.3 | 40.3 | 36.3 | 37.3 |
+| Top-5 % recall both loops | 57.4 | 54.5 | 59.1 | 52.3 | 53.4 | 44.9 | 42.3 | 38.0 | 34.0 | 39.1 | 39.7 | 40.1 |
+| Top-5 % recall fast loop only | 57.4 | 54.5 | 59.1 | 52.3 | 53.4 | 50.7 | 40.9 | 36.8 | 31.4 | 36.0 | 35.8 | 36.4 |
 
-![Two loops](docs/guide/loops_ablation.png)
+![Full system vs no MLOps](charts/compare/all_labels-system_vs_all_labels-no_mlops/overview.png)
 
 - The **fast loop** does most of the work: it keeps the review workload at the plan all year
-  (5.7 % instead of 8.5 % — a third fewer reviews) and the FPR at 5.1 % instead of 7.9 %.
-- **Retraining** adds a better ranking on top: +1.0 pp of the fraud in the top 5 % and 8 % higher
-  average precision, mostly in the camouflage months (month 12: 43.9 % vs 38.6 %).
-- The frozen model with its fixed threshold catches more fraud (55.5 %) only because it reviews
-  50 % more applications.
+  (5.7 % instead of 8.3 % — almost a third fewer reviews) and the FPR at 5.2 % instead of 7.7 %.
+- **Retraining** adds a better ranking on top: +1.5 pp recall at the same workload, +1.7 pp of the
+  fraud in the top 5 % and 6 % higher average precision. Over the year the retrained models caught
+  1,659 instead of 1,607 frauds; 139 frauds were caught only by them, 87 only by the frozen v1
+  (McNemar p < 0.001). The gain comes from the camouflage months (month 11: 40.8 % vs 36.3 %,
+  month 12: 43.4 % vs 37.3 %, both p < 0.02); in month 6 the top-5 % ranking of v2/v3 was worse
+  (44.9 % vs 50.7 %), because they were trained shortly after the scale change.
+  Charts: [charts/compare/all_labels-system_vs_all_labels-fast_loop/](charts/compare/all_labels-system_vs_all_labels-fast_loop/).
+- The frozen model with its fixed threshold catches more fraud (53.8 %) only because it reviews
+  45 % more applications.
 
 ## 6. Realistic labels: only reviewed and audited cases
 
-Only **flagged** applications are reviewed and labelled (weight 1); a random **2 % audit** of the
-others is labelled with weight 50; everything else stays unknown. Three runs with different audit
+Only **flagged** applications are reviewed and labelled (weight 1); a random **5 % audit** of the
+others is labelled with weight 20; everything else stays unknown. Three runs with different audit
 samples (the applications are identical):
 
 | | Audit sample A | B | C | All labels |
 | --- | ---: | ---: | ---: | ---: |
-| Applications with a label | 7.6 % | 7.8 % | 7.6 % | 100 % |
-| Extra reviews for the audit | 4,275 | 4,304 | 4,262 | – |
-| Trainings / promoted / skipped | 11 / 11 / 3 | 12 / 12 / 0 | 11 / 10 / 3 | 12 / 10 / 1 |
+| Applications with a label | 10.5 % | 10.3 % | 10.7 % | 100 % |
+| Extra reviews for the audit | 13,425 | 13,462 | 13,375 | – |
+| Missed frauds found by the audit (year) | 95 | 93 | 99 | – |
+| Trainings / promoted / skipped | 11 / 11 / 2 | 11 / 11 / 2 | 11 / 11 / 2 | 14 / 11 / 2 |
 | Weeks with measurable recall | 0 of 48 | 0 | 0 | 47 of 48 |
-| Error of the recall estimate (mean / max, only shown) | 15 / 51 pp | 19 / 58 pp | 12 / 42 pp | 0 |
-| Error of the FPR estimate (mean / max) | 0.25 / 1.2 pp | 0.23 / 1.1 pp | 0.22 / 0.6 pp | 0 |
-| **True recall / FPR (year)** | 46.9 % / 5.2 % | 47.6 % / 5.3 % | 47.2 % / 5.2 % | 48.0 % / 5.2 % |
-| Fraud in the top 5 % | 42.9 % | 43.7 % | 42.8 % | 44.9 % |
-| Average precision | 0.130 | 0.132 | 0.132 | 0.149 |
+| Error of the recall estimate (mean / max, only shown) | 7 / 19 pp | 8 / 31 pp | 9 / 48 pp | 0 |
+| Error of the FPR estimate (mean / max) | 0.09 / 0.3 pp | 0.11 / 0.8 pp | 0.14 / 0.5 pp | 0 |
+| **True recall / FPR (year)** | 46.6 % / 5.3 % | 45.8 % / 5.1 % | 46.4 % / 5.5 % | 48.3 % / 5.2 % |
+| Fraud in the top 5 % | 42.4 % | 39.6 % | 41.4 % | 44.6 % |
+| Average precision | 0.124 | 0.116 | 0.112 | 0.141 |
 
-(Fast loop only, for comparison: 47.2 % / 5.1 %, top-5 % 43.9 %, AP 0.138.)
+(Fast loop only, for comparison: 46.8 % / 5.2 %, top-5 % 42.9 %, AP 0.134.)
 
-![Estimate vs truth](docs/results/charts/realistic_estimate_vs_truth.png)
+![Estimate vs truth](charts/audit_sample_a/believed_vs_true_recall.png)
+
+![All vs realistic labels](charts/compare/label_modes_recall.png)
 
 What this shows:
 
-- **The results do not depend on the audit sample** (recall 46.9–47.6 %).
+- **The audit sample changes the result only a little** (recall 45.8–46.6 %, top-5 % 39.6–42.4 %).
 - **Label-free monitoring and the fast loop work the same** as with all labels.
 - **The FPR is measurable, recall is not:** the monitor never had 20 labelled missed frauds in
   28 days, so it (correctly) never judged recall; the weighted estimate would have been off by
-  12–19 pp on average.
-- **The gate cannot see gains:** in almost every retraining recall was not comparable and the newer
-  model was promoted; the known-fraud check rejected one candidate (82 % vs 98 % of the reviewed
-  frauds).
+  7–9 pp on average (better than with the 2 % audit, 12–19 pp, but still far too noisy for a
+  trigger).
+- **The gate cannot see gains:** recall was never comparable, so every candidate was promoted —
+  also the three early ones that the all-label gate rejected. The known-fraud check did not have to
+  stop any model in this run.
 - **Retraining with realistic labels adds nothing** over the fast loop — the ranking is even slightly
-  worse (top-5 % 42.8–43.7 % vs 43.9 %). The models learn mainly from cases the old model already
-  selected; the fraud it misses is only seen through ~2 audited cases per month.
+  worse (top-5 % 39.6–42.4 % vs 42.9 %). The models learn mainly from cases the old model already
+  selected; the fraud it misses is only seen through ~8 audited cases per month.
 - **Lesson:** with realistic labels the value of MLOps comes from label-free control and honest
-  measurement; better models would need more label information (larger or targeted audit, other
-  label sources, champion/challenger reviews).
+  measurement; better models would need more label information (targeted audit, other label
+  sources, champion/challenger reviews).
 
 ### Open issue: recall with realistic labels (not fixed in this project)
 
 For the fourth version I raised the audit from 2 % to 5 % (weight 20). It is still not enough:
-the rebuilt months contain 165 audited fraud cases in the whole year, about 14 per 4 weeks, and
-only ~8 of them are frauds the model missed. Recall needs exactly these cases. The monitor wants
-≥ 20 in 28 days, the gate ≥ 10 in its 14-day holdout, so with realistic labels:
+in the whole year the audit found only 93–99 frauds that the model had missed, about 8 per
+4 weeks. Recall needs exactly these cases. The monitor wants ≥ 20 in 28 days, the gate ≥ 10 in its
+14-day holdout, so with realistic labels:
 
 - recall is never measured and the performance trigger never fires (schedule and drift still do);
 - the promotion gate can only reject clearly broken models (sanity check and the known-fraud
@@ -174,8 +219,8 @@ checked either needs more labels or brings in a new bias:
 | **Review hit rate** (share of reviewed cases that are fraud) as a performance signal | measured exactly every week, ±1 pp per 4 weeks; falls from ~12 % to 8–10 % in the camouflage months although the fraud rate rises | next step for monitoring |
 | **Champion/challenger in shadow mode**, reviewing the cases only one model flags | ~1 % extra reviews give ~10 labelled frauds per 4 weeks that the champion missed → a fair paired comparison | next step for the gate |
 
-With all labels none of this is needed: the holdout has ~65 labelled missed frauds and the
-monitor ~130, so both comparisons work (only the noise of about ±3–4 pp on a 14-day holdout
+With all labels none of this is needed: the holdout has ~95–105 labelled missed frauds and the
+monitor 80–215, so both comparisons work (only the noise of about ±3–4 pp on a 14-day holdout
 remains).
 
 ## 7. Problems I found on the way (and fixed)
@@ -194,10 +239,25 @@ remains).
 4. **A useless FPR check:** at equal workload every model has almost the same FPR; the noisy weighted
    estimate rejected a good candidate (7.09 %). → FPR check only with the old threshold policy.
 
-## 8. First version (numbers in the current slides)
+## 8. Earlier runs
 
-Before the changes of section 1, with 30,000 applications per month shrinking to ~17,900 during the
-downturn (247,435 in total) — not directly comparable. Tables in `docs/results/first_version/`.
+Not directly comparable: other month sizes, other downturn, smaller audit.
+
+**29 September (2 % audit, old downturn, 16,000 → 20,000 per month, 229,000 applications)**,
+tables in `docs/results/third_version/`:
+
+| | Both loops | Fast loop only | No MLOps | Realistic labels (3 samples) |
+| --- | ---: | ---: | ---: | ---: |
+| Recall / FPR (year) | 48.0 % / 5.2 % | 47.2 % / 5.1 % | 55.5 % / 7.9 % | 46.9–47.6 % / 5.2–5.3 % |
+| Sent to review | 5.8 % | 5.7 % | 8.5 % | – |
+| Fraud in the top 5 % | 44.9 % | 43.9 % | 43.9 % | 42.8–43.7 % |
+| Trainings / promoted | 12 / 10 | – | – | 11–12 / 10–12 |
+
+The picture is the same in both runs: the fast loop does most of the work, retraining adds
+1–1.5 pp with all labels and nothing with realistic labels.
+
+**First version** (before the changes of section 1, 30,000 applications per month shrinking to
+~17,900 during the downturn, 247,435 in total), tables in `docs/results/first_version/`:
 
 | | All labels | Realistic labels (1 run) | Frozen v1 |
 | --- | ---: | ---: | ---: |
@@ -214,11 +274,13 @@ downturn (247,435 in total) — not directly comparable. Tables in `docs/results
   with realistic labels.
 - **Monitoring the right thing matters more than more rules:** three of the four problems in
   section 7 were measurement problems (a wrong estimate, a wrong early-stopping signal, an
-  unconfirmed change), found only because the simulation knows the true labels.
+  unconfirmed change), found only because the simulation knows the true labels. The wasted
+  retraining in week 43 is another small example: the rule counted labels that could not be used.
 - **Camouflage still hurts every variant:** recall falls from ~60 % to 35–45 %. The performance
   trigger reacts, but the retrained models can only partly relearn the copied signals.
-- **Fairness does not fix itself:** the FPR ratio between age groups stayed at ~0.29 (0.36 for the
+- **Fairness does not fix itself:** the FPR ratio between age groups stayed at ~0.31 (0.36 for the
   frozen model, which flags more people).
 - **Limits of the simulation:** only 4 real BAF months stretched to 12; labels from a perfect review
-  after exactly 4 weeks; the realistic runs ran locally (same code as Jenkins — the first 8 weeks'
-  thresholds were identical to the Jenkins run).
+  after exactly 4 weeks; the realistic runs ran locally (same code as Jenkins — the first 7 weeks'
+  thresholds were identical to the Jenkins run, until the realistic gate promoted the week-7
+  candidate that the all-label gate rejected).

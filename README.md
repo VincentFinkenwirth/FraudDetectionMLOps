@@ -68,9 +68,9 @@ python -m unittest discover -s tests -t .
 
 ## Run everything with Docker (recommended)
 
-> Status: tested on 29 September 2026 with the second version of the pipeline. The full simulated
-> year ran through Jenkins in Docker (52 monitor builds, 13 retrain builds); the three
-> realistic-label years ran locally with the same code.
+> Status: tested on 7 October 2026 with the fourth version of the pipeline, after a full reset.
+> The full simulated year ran through Jenkins in Docker (52 monitor builds, none failed;
+> 14 retrain builds with training); the three realistic-label years ran locally with the same code.
 
 ```powershell
 copy .env.example .env              # then replace every value with a random one
@@ -127,7 +127,7 @@ python -m simulation.guide_charts
 python -m simulation.compare_runs --run all_labels=work/docker_reports --run realistic_a=work/runs/realistic_a/report
 ```
 
-`docs/presentation/` still holds the charts of the first version (the ones in the current slides).
+`docs/presentation/` (local) holds the slide charts; the current slides still show the 29 September run.
 
 To start again from v1, run `docker compose down -v`, delete `models/` and run
 `python package_model.py`.
@@ -208,23 +208,26 @@ downturn months are the biggest ones and no row is used twice.
 
 ## Results
 
-Full year in [RESULTS.md](RESULTS.md). In short (all labels, 229,000 applications):
+Full year in [RESULTS.md](RESULTS.md). In short (all labels, 286,300 applications):
 
 | | Recall | FPR | Sent to review | Fraud in top 5 % |
 | --- | ---: | ---: | ---: | ---: |
-| Both loops (retraining + workload threshold) | 48.0 % | 5.2 % | 5.8 % | 44.9 % |
-| Fast loop only (frozen v1 + workload threshold) | 47.2 % | 5.1 % | 5.7 % | 43.9 % |
-| No MLOps (frozen v1, fixed threshold) | 55.5 % | 7.9 % | 8.5 % | 43.9 % |
+| Both loops (retraining + workload threshold) | 48.3 % | 5.2 % | 5.7 % | 44.6 % |
+| Fast loop only (frozen v1 + workload threshold) | 46.8 % | 5.2 % | 5.7 % | 42.9 % |
+| No MLOps (frozen v1, fixed threshold) | 53.8 % | 7.7 % | 8.3 % | 42.9 % |
 
 - Every injected change was detected by the signal it was designed for; after the new
   credit-bureau scale the review share was back to plan after **one week**.
-- 12 trainings, 10 promoted, 2 rejected by the gate, retraining blocked during the data-quality
-  incident.
-- The fast loop does most of the work (a third fewer reviews than the frozen model); retraining
-  adds a modest ranking gain with all labels and none with realistic labels (three audit samples:
-  recall 46.9–47.6 %, recall never measurable).
+- 14 trainings, 11 promoted, 3 rejected by the gate (all before the scale change), retraining
+  blocked during the data-quality incident.
+- The fast loop does most of the work (almost a third fewer reviews than the frozen model);
+  retraining adds a modest ranking gain with all labels (+1.5 pp recall at the same workload,
+  mostly in the camouflage months) and none with realistic labels (three 5 % audit samples:
+  recall 45.8–46.6 %, recall never measurable).
 
-![Two loops](docs/guide/loops_ablation.png)
+![Full system vs no MLOps](charts/compare/all_labels-system_vs_all_labels-no_mlops/overview.png)
+
+All result charts are in [charts/](charts/) (`python -m simulation.plot_results`).
 
 ## Access control
 
