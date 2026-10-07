@@ -153,6 +153,45 @@ Same 286,300 applications, true labels:
 - The frozen model with its fixed threshold catches more fraud (53.8 %) only because it reviews
   45 % more applications.
 
+### Why the fast loop alone gets so close
+
+The fast loop only moves the threshold. Every week, without labels, the monitor scores last week's
+applications again with the served model and sets the threshold so that exactly 5.5 % of them
+would have been flagged (`workload_threshold` in `pipeline/common.py`); the API reloads and
+confirms it. It is skipped during a data-quality incident and in weeks with fewer than 2,000
+applications. The model and the order of the applications never change.
+
+Drift can hurt a model in two ways, and each loop fixes one of them:
+
+| What the drift does | In my scenario | Fixed by | How fast |
+| --- | --- | --- | --- |
+| The scores shift, so the wrong *number* of applications is reviewed | new credit-bureau scale, downturn | fast loop (threshold) | 1 week, no labels |
+| The model ranks the applications in the wrong *order* | camouflage | only retraining | 4–8 weeks, needs labels |
+
+Most of the damage in my scenario is of the first kind, and the fast loop removes it completely.
+Only the camouflage attacks the ranking, and that is exactly where retraining shows a significant
+gain: recall on camouflaged fraud 30 % vs 20 % in month 12, and +5–6 pp overall recall in months
+11–12 (charts: `recall_by_fraud_type.png` and `paired_difference.png` in
+[charts/compare/all_labels-system_vs_all_labels-fast_loop/](charts/compare/all_labels-system_vs_all_labels-fast_loop/)).
+So the small overall gap is not a sign that retraining does not work, but that this scenario
+contains only one change of the second kind.
+
+I see this as a finding, not as a flaw of the design: a fast label-free loop for the operating
+point and a slow label-based loop for the model is how fraud and credit systems are usually run,
+and the comparison above measures what each part contributes. The limits behind the result:
+
+- **Only one ranking attack in the scenario.** With stronger or more frequent concept drift
+  retraining would matter more; the size of its gain partly reflects how I built the scenario.
+- **Retrained models start at a disadvantage.** v1 was tuned with Optuna on 400,000 rows; a
+  retraining uses 150,000 history rows + recent data without tuning (the gate rejected the first
+  three candidates), and with 4 weeks label delay the newest data it learns from is ~8 weeks old.
+- **With realistic labels retraining adds nothing** (section 6) — a label problem, not a pipeline
+  problem.
+- **The fourth variant, retraining without the fast loop, was not run in this version.** My first
+  version was close to it (fixed threshold per model): after the scale change it sent 12–19 % of
+  the applications to review and needed 8 weeks until the FPR was back (section 8). That is why
+  the fast loop exists.
+
 ## 6. Realistic labels: only reviewed and audited cases
 
 Only **flagged** applications are reviewed and labelled (weight 1); a random **5 % audit** of the
