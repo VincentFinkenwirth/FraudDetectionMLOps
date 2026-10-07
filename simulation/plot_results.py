@@ -4,6 +4,7 @@
     python -m simulation.plot_results --run all_labels=docs/results/all_labels \
         --run audit_a=docs/results/realistic_labels/audit_sample_a \
         --compare all_labels:system,audit_a:system --output charts
+    python -m simulation.plot_results --slides --no-monthly-matrices   (deck look, charts/slides)
 
 A result folder is what simulation.summarize writes: applications.parquet,
 weekly_monitoring.csv, trainings.csv, weekly_feature_psi.csv and (since the
@@ -59,6 +60,9 @@ BAND = "#F1EDE7"
 SURFACE = "#FAF8F5"       # slide background
 PX = 1 / 100              # 1 inch = 100 slide pixels
 
+DPI = 200
+SLIDES = False            # True after slide_theme()
+
 FIRST = dict(color=ORANGE, lw=3, marker="o", ms=7)
 SECOND = dict(color=INK, lw=2.5, ls="--", marker="s", ms=6)
 
@@ -74,6 +78,7 @@ FPR_LIMIT = 0.05
 
 EVENT_NAMES = {"downturn": "downturn", "score_offset": "new credit-\nbureau scale",
                "camouflage": "fraudsters\ncamouflage"}
+INCIDENT_NAME = "mobile-form\nincident"
 
 
 # ---------------------------------------------------------------- style
@@ -91,9 +96,37 @@ def style():
     })
 
 
+def slide_theme():
+    """Look of the final slide deck: white background, the deck's colours and
+    bigger text. The slide already has a heading, so the charts get no title.
+
+    PX is what makes the text bigger: a figure of 1180 slide pixels is now
+    1180/140 inch instead of 1180/100, so every font size (in points) takes
+    1.4 times more of the chart. DPI goes up by the same factor, so the PNG
+    keeps the same number of pixels."""
+    global ORANGE, ORANGE_WASH, INK, TEXT, MUTED, GRID, BAND, SURFACE, PX, DPI, SLIDES, FIRST, SECOND
+    global EVENT_NAMES, INCIDENT_NAME
+    ORANGE = "#EA6A12"
+    ORANGE_WASH = "#FBE1CD"
+    INK = "#1F2328"
+    TEXT = "#5B6472"
+    MUTED = "#9AA1AB"
+    GRID = "#E3E6EA"
+    BAND = "#F2F3F5"
+    SURFACE = "#FFFFFF"
+    PX = 1 / 140
+    DPI = 280
+    SLIDES = True
+    # with the bigger text the two-line names overlap (the changes are only 2 months apart)
+    EVENT_NAMES = {"downturn": "downturn", "score_offset": "new scale", "camouflage": "camouflage"}
+    INCIDENT_NAME = "form bug"
+    FIRST = dict(color=ORANGE, lw=4, marker="o", ms=8)
+    SECOND = dict(color=INK, lw=3, ls="--", marker="s", ms=7)
+
+
 def save(fig, path):
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=200)
+    fig.savefig(path, dpi=DPI)
     plt.close(fig)
     print(f"saved {path.relative_to(PROJECT_DIR) if path.is_relative_to(PROJECT_DIR) else path}")
 
@@ -103,6 +136,8 @@ def pct(decimals=0):
 
 
 def title(ax, text, subtitle=None):
+    if SLIDES:
+        return
     ax.set_title(text, loc="left", color=INK, fontsize=20, pad=34 if subtitle else 12)
     if subtitle:
         ax.text(0, 1.02, subtitle, transform=ax.transAxes, color=TEXT, fontsize=15, va="bottom")
@@ -269,15 +304,17 @@ def event_marks(ax, scenario, unit="month", labels=True, band=True):
     def edge(month):   # left edge of a month on this axis
         return (month - 1) * per + 0.5
 
-    for month, label in starts:
+    for i, (month, label) in enumerate(starts):
         ax.axvline(edge(month), color=MUTED, lw=1.2, zorder=1)
+        # on slides every second name sits a bit lower, so neighbours don't touch
+        height = 0.98 - 0.09 * (i % 2) if SLIDES else 0.98
         if labels:
-            ax.text(edge(month) + 0.08 * per, 0.98, label, transform=ax.get_xaxis_transform(), color=TEXT,
+            ax.text(edge(month) + 0.08 * per, height, label, transform=ax.get_xaxis_transform(), color=TEXT,
                     fontsize=13, va="top", ha="left")
     if incident and band:
         ax.axvspan(edge(incident[0]), edge(incident[-1] + 1), color=BAND, lw=0, zorder=0)
         if labels:
-            ax.text(edge(incident[0]) + 0.08 * per, 0.98, "mobile-form\nincident",
+            ax.text(edge(incident[0]) + 0.08 * per, 0.98, INCIDENT_NAME,
                     transform=ax.get_xaxis_transform(), color=TEXT, fontsize=13, va="top", ha="left")
 
 
@@ -549,8 +586,11 @@ def review_share_and_threshold(run, output):
     with style():
         fig, (top, bottom) = plt.subplots(2, 1, figsize=(1180 * PX, 720 * PX), sharex=True,
                                           gridspec_kw={"height_ratios": [1.6, 1]})
-        top.plot(weekly.index, weekly["system"], **{**FIRST, "ms": 5}, label="full system (weekly threshold)")
-        top.plot(weekly.index, weekly["fixed"], **{**SECOND, "ms": 4}, label="no MLOps (fixed threshold)")
+        # short legend on slides, the long one does not fit with the bigger text
+        names = ("full system", "no MLOps") if SLIDES else \
+            ("full system (weekly threshold)", "no MLOps (fixed threshold)")
+        top.plot(weekly.index, weekly["system"], **{**FIRST, "ms": 5}, label=names[0])
+        top.plot(weekly.index, weekly["fixed"], **{**SECOND, "ms": 4}, label=names[1])
         top.axhline(plan, color=MUTED, lw=1.2, ls=":")
         top.text(weekly.index.max() + 0.6, plan, f"plan\n{plan:.1%}", color=TEXT, fontsize=13, va="center")
         # extra room at the top, so the legend sits above the lines
@@ -815,10 +855,17 @@ def main():
     parser.add_argument("--run", action="append", help="name=folder with the summarize output (repeatable)")
     parser.add_argument("--compare", action="append",
                         help="two series run:model,run:model (repeatable); models: " + ", ".join(MODELS))
-    parser.add_argument("--output", type=Path, default=PROJECT_DIR / "charts")
+    parser.add_argument("--output", type=Path, default=None,
+                        help="default: charts (or charts/slides with --slides)")
     parser.add_argument("--no-monthly-matrices", action="store_true",
                         help="skip the single confusion matrix per month (36 files per run)")
+    parser.add_argument("--slides", action="store_true",
+                        help="white background, bigger text and no chart titles, for the slide deck")
     args = parser.parse_args()
+    if args.slides:
+        slide_theme()
+    if args.output is None:
+        args.output = PROJECT_DIR / "charts" / ("slides" if args.slides else "")
 
     items = [item.split("=", 1) for item in args.run] if args.run else default_runs()
     if not items:
