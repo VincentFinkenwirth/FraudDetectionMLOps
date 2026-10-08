@@ -15,10 +15,17 @@ tmp/
 !.env.example
 *.egg-info/
 catboost_info/
+.chart-data-*/
 
 # Keep the repository focused on implementation, tests and documentation.
-# Results, charts and the presentation (docs/) stay local.
-docs/
+# docs/ only holds the written documentation in git. Result tables, the
+# presentation and my preparation notes stay local.
+docs/*
+!docs/TRAINING.md
+!docs/DEPLOYMENT_STRATEGY.md
+!docs/VISUALIZATION.md
+# the charts in the slide look are only made for the presentation deck
+charts/slides/
 task/
 tasks/
 *.ipynb

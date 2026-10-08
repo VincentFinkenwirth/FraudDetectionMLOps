@@ -15,7 +15,7 @@ after a full reset (`docker compose down -v`, fresh `models/` with only v1):
 before the downturn, 25,000 during it) plus 4 weeks in which only the last labels arrive. Labels
 always arrive 4 weeks late. Tables: [docs/results/](docs/results/) (stays local). All charts are in
 [charts/](charts/) and are made only from the result folders with `python -m simulation.plot_results`
-(one folder per run, `charts/compare/` for the comparisons, see VISUALIZATION.md). The numbers of the
+(one folder per run, `charts/compare/` for the comparisons, see [docs/VISUALIZATION.md](docs/VISUALIZATION.md)). The numbers of the
 earlier runs are in section 8.
 
 ## 1. What changed

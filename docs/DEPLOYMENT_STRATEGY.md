@@ -4,7 +4,7 @@ Proposed design for discussion, 25 September 2026. Target: a local Docker demons
 
 ## Implementation status (28 September 2026)
 
-The design below is now implemented; see [README.md](README.md) for how to run it. Deviations from the original plan, and why:
+The design below is now implemented; see [README.md](../README.md) for how to run it. Deviations from the original plan, and why:
 
 | Plan | Implemented | Reason |
 | --- | --- | --- |
@@ -170,7 +170,7 @@ Also score a frozen copy of the initial model in an isolated offline comparison 
 
 Use Jenkins parameters for an accelerated simulated clock so a year can be demonstrated in one session. The same pipeline can have a real monthly Jenkins schedule. No Codex reminder or background automation is required for this design.
 
-## Implementation order and existing gaps
+## Implementation order
 
 1. Package the selected bundle and build the API, data contract, durable prediction log, and smoke checks.
 2. Build replay and delayed-label ingestion with deterministic manifests and leakage checks.
@@ -178,7 +178,7 @@ Use Jenkins parameters for an accelerated simulated clock so a year can be demon
 4. Add Jenkins training, independent candidate gates, model registration, deployment, and rollback.
 5. Run the complete year and export comparative results and the architecture diagram.
 
-`project.md` currently describes an older logistic-regression demo and entry points absent from this workspace. Update it to match the implemented CatBoost system. The available `tests` directory currently contains only cached bytecode, so documented test coverage cannot be assumed from that directory. Restore/add meaningful source tests for data leakage, threshold consistency, idempotency, trigger deduplication, and deployment rollback during implementation. The working `.venv-check` environment was used for the initial test report; the old `.venv` launcher currently points at an unavailable Python installation.
+All five steps are implemented. The tests are in `tests/` (`python -m unittest discover -s tests -t .`).
 
 ## References
 

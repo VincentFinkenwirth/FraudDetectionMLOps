@@ -775,6 +775,8 @@ def recall_by_fraud_type(a, b, labels, scenario, path):
             frauds = int(((a["fraud_bool"] == 1) & (a["camouflaged"] == camouflaged)).sum())
             ax.set_title(f"{heading} ({frauds:,} cases)", loc="left", color=INK, fontsize=19, pad=12)
         axes[0].set_ylabel("True recall")
+        # sharey hides the numbers on the right panel, but it should be readable on its own
+        axes[1].tick_params(labelleft=True)
         axes[0].legend(loc="lower left")
         fig.tight_layout(w_pad=3)
         save(fig, path)
@@ -902,6 +904,7 @@ def label_modes_spread(runs, output):
         month_axis(ax, first["month"])
         ax.set_ylim(0, max(first["recall"].max(), spread["max"].max()) * 1.35)
         ax.yaxis.set_major_formatter(pct())
+        ax.set_ylabel("True recall")
         title(ax, "True recall with all vs realistic labels", "full system in both cases, same applications")
         ax.legend(loc="lower left")
         fig.tight_layout()

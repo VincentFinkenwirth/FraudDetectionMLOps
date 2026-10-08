@@ -48,6 +48,27 @@ flowchart LR
 | Simulation | `simulation/build_months.py`, `simulation/replay.py`, `simulation/summarize.py` | 12 months with injected drift, replayed week by week through the REST API. |
 | Deployment | `docker-compose.yml`, `docker/`, `jenkins/` | API, PostgreSQL, MLflow (login), Jenkins (configuration as code). |
 
+## Repository layout
+
+```text
+*.py              training and shared code (data splits, training, scoring, drift, registry)
+service/          REST API
+pipeline/         steps of the Jenkins jobs (monitor, retrain, smoke test)
+simulation/       building and replaying the simulated year, summaries, result charts
+configs/          training, monitoring, retraining and drift scenario settings
+docker/ jenkins/  container images and Jenkins jobs (configuration as code)
+initial_model/    the frozen first model (v1)
+tests/            unit tests
+charts/           result charts of the simulated year
+docs/             more documentation (see below)
+work/runs/        script to run a simulated year locally without Docker
+```
+
+Documentation: this README (how to run it), [RESULTS.md](RESULTS.md) (results of the
+simulated year), [docs/TRAINING.md](docs/TRAINING.md) (data, model choice and tuning),
+[docs/DEPLOYMENT_STRATEGY.md](docs/DEPLOYMENT_STRATEGY.md) (design decisions of the
+production system) and [docs/VISUALIZATION.md](docs/VISUALIZATION.md) (how the charts are made).
+
 ## Setup
 
 Python 3.12, then:
