@@ -1,256 +1,102 @@
-# Fraud detection for a government agency — from model to production
+# Fraud detection — from model to production
 
-IU course DLBDSMTP01 "Project: From Model to Production", **Task 3 (spotlight: MLOps)**.
+IU course DLBDSMTP01, Task 3 (MLOps). A CatBoost REST service prioritizes benefit applications for human review. Predictions are logged, labels arrive four weeks later, and Jenkins monitors drift, adjusts review thresholds, and retrains models.
 
-A CatBoost model scores benefit applications for fraud. The score only decides which
-applications a person reviews first — it never rejects anybody. The model runs as a
-REST service, every prediction is logged, labels arrive one month later, a weekly
-Jenkins job monitors drift and performance, and Jenkins retrains and redeploys the
-model every month or earlier when the data changes. One year of drifting data is
-simulated to test the whole loop.
+## 1. Setup
 
-## Architecture
+Use **Python 3.12**, **Git**, and **Docker with Compose**. Run all commands from the repository root; examples use PowerShell.
 
-```mermaid
-flowchart LR
-    subgraph Clients
-      A[Application system<br/>simulation/replay.py]
-      I[Investigation team<br/>delayed labels]
-    end
-    subgraph Docker Compose
-      API[FastAPI service<br/>/predict /labels /model-info]
-      DB[(PostgreSQL<br/>predictions, labels,<br/>pipeline events)]
-      M[(models/<br/>versions + current.json)]
-      J[Jenkins<br/>fraud-monitor weekly<br/>fraud-retrain]
-      ML[MLflow server<br/>runs, metrics,<br/>model registry]
-    end
-    A -- "X-API-Key (predict)" --> API
-    I -- "X-API-Key (labels)" --> API
-    API -- "log features + served score" --> DB
-    M -- "load + hot reload" --> API
-    J -- "read predictions + labels" --> DB
-    J -- "monitoring metrics, runs, registry" --> ML
-    J -- "publish version, switch current.json" --> M
-    J -- "reload + smoke test (admin key)" --> API
-```
-
-| Part | File(s) | What it does |
-| --- | --- | --- |
-| Data splits | `training/prepare_data.py`, `training/get_data.py` | Time-ordered splits of the BAF `Base.csv` (train / val / test / simulation pool / reserve). |
-| Model training | `training/train.py`, `fraud/preprocessing.py`, `initial_model/` | CatBoost, hyperparameters tuned with Optuna for max. recall with FPR < 5 % (the tuned model is `initial_model/`). |
-| Probabilities | `fraud/scoring.py`, `training/package_model.py` | Corrects the class-weighted scores to real probabilities; builds deployable bundle v1. |
-| REST API | `service/api.py`, `service/schemas.py`, `service/db.py` | Scoring, validation, API keys with roles, prediction log, label import, hot model reload. |
-| Drift + fairness | `fraud/drift.py`, `fraud/fairness.py` | PSI per feature, importance-weighted drift share, quality checks, FPR by age group. |
-| Monitoring job | `pipeline/monitor.py`, `jenkins/monitor.Jenkinsfile` | Weekly: data drift, data quality, delayed-label performance → retrain decision; label-free workload threshold (fast loop). |
-| Retraining job | `pipeline/retrain.py`, `jenkins/retrain.Jenkinsfile` | Snapshot → train → evaluate (promotion gate) → register → deploy + smoke test + rollback. |
-| Model registry | `fraud/model_registry.py`, MLflow registry | `models/current.json` decides what the API serves; MLflow keeps every candidate. |
-| Simulation | `simulation/build_months.py`, `simulation/replay.py`, `simulation/summarize.py` | 12 months with injected drift, replayed week by week through the REST API. |
-| Deployment | `docker-compose.yml`, `docker/`, `jenkins/` | API, PostgreSQL, MLflow (login), Jenkins (configuration as code). |
-
-## Repository layout
-
-```text
-fraud/            shared code: preprocessing, scoring, model registry, drift, fairness, lineage
-training/         data splits, training, packaging of v1, evaluation charts
-service/          REST API
-pipeline/         steps of the Jenkins jobs (monitor, retrain, smoke test)
-simulation/       building and replaying the simulated year, summaries, result charts
-configs/          training, monitoring, retraining and drift scenario settings
-docker/ jenkins/  container images and Jenkins jobs (configuration as code)
-initial_model/    the frozen first model (v1)
-tests/            unit tests
-charts/           result charts of the simulated year
-```
-
-The scripts are started from the project folder as modules, e.g. `python -m training.train`.
-
-## Setup
-
-Python 3.12, then:
+### Prepare the data and model
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-The dataset is not in git (213 MB). Download `Base.csv` from Kaggle
-("Bank Account Fraud Dataset Suite (NeurIPS 2022)") into `data/raw/`, then:
+In `.env`, replace the placeholder API keys, passwords, and `MLFLOW_SECRET_KEY` with random values (API keys need at least 16 characters). Keep the service URLs and repository settings unless your setup differs.
+
+Download `Base.csv` from Kaggle's **Bank Account Fraud Dataset Suite (NeurIPS 2022)** into `data/raw/`. The dataset is not included in Git.
 
 ```powershell
-python -m training.get_data         # checks the SHA-256 and creates data/splits/
-python -m training.package_model    # initial_model/ -> models/versions/v1 (+ deploys it)
-python -m simulation.build_months   # 12 simulated months -> data/simulation/
+python -m training.get_data         # verify the dataset and create data/splits/
+python -m training.package_model    # package and deploy the initial model as v1
+python -m simulation.build_months   # create 12 simulated months in data/simulation/
 python -m unittest discover -s tests -t .
 ```
 
-## Run everything with Docker (recommended)
-
-> Status: tested on 7 October 2026 with the fourth version of the pipeline, after a full reset.
-> The full simulated year ran through Jenkins in Docker (52 monitor builds, none failed;
-> 14 retrain builds with training); the three realistic-label years ran locally with the same code.
+### Start the Docker stack
 
 ```powershell
-copy .env.example .env              # then replace every value with a random one
 docker compose up -d --build
 ```
 
-Jenkins only runs **committed and tested** code. About a minute after start-up `fraud-ci` checks out
-the newest commit on `main` (`GIT_BRANCH` in `.env`) from this repository, which is mounted read-only
-(`GIT_REPO_URL` can point to GitHub instead), and runs: environment check against `requirements.lock`,
-unit tests, and a training smoke test on real data. A green commit is pushed to a release repository inside Jenkins;
-`fraud-monitor` and `fraud-retrain` load their Jenkinsfile and code only from there. Until the first
-green CI build they fail with "no release yet". Every model bundle records the commit, the SHA-256 of
-its training data and the library versions (`metadata.json`, `/model-info`, MLflow tag `git_commit`).
-
-```text
-commit -> fraud-ci (env check, tests, smoke test) --green--> release.git -> fraud-monitor / fraud-retrain
-```
-
-Both images install exact versions from lock files (`requirements.lock`, `requirements-api.lock`,
-generated from `requirements*.txt` with `uv pip compile`; command in the file header), with Python
-3.12 in both. The API refuses a model that another CatBoost version wrote.
-
-| Service | URL | Login |
+| Service | URL | Credentials |
 | --- | --- | --- |
-| REST API docs | http://localhost:8000/docs | `X-API-Key` header (keys in `.env`) |
+| API documentation | http://localhost:8000/docs | `X-API-Key` from `.env` |
 | Jenkins | http://localhost:8080 | `JENKINS_ADMIN_ID` / `JENKINS_ADMIN_PASSWORD` |
 | MLflow | http://localhost:5000 | `admin` / `MLFLOW_ADMIN_PASSWORD` |
 
-Replay the simulated year. Jenkins decides every week and retrains when needed:
+Wait for Jenkins's first successful `fraud-ci` build before replaying data. It tests committed code from `GIT_BRANCH` (default: `main`) and releases it to `fraud-monitor` and `fraud-retrain`. Uncommitted changes are not used by those jobs.
 
 ```powershell
 python -m simulation.replay --pipeline jenkins
 docker compose exec -w /project jenkins python -m simulation.summarize --output /reports
 ```
 
-By default every application gets its true label 4 weeks later. `--label-mode realistic`
-only labels the flagged (reviewed) applications plus a random 5 % audit of the others,
-weighted by 1 / audit share; the rest stays unknown. `--audit-seed N` draws the audit sample
-with another seed. The tables end up in `work/docker_reports/`.
+Reports are written to `work/docker_reports/`. Replay uses all labels by default; add `--label-mode realistic` to label reviewed applications plus a random 5% audit of unreviewed applications. Use `--audit-seed N` to vary the audit sample.
 
-To start again from v1, run `docker compose down -v`, delete `models/` and run
-`python -m training.package_model`.
+### Optional: run locally without Docker
 
-## Run without Docker
-
-The same Python jobs can run in one process (SQLite instead of PostgreSQL, local MLflow):
+After preparing the data and model, set these variables to the matching keys in `.env`, then start the API (SQLite and local MLflow are used by default):
 
 ```powershell
-$env:API_KEY_ADMIN="..."; $env:API_KEY_PREDICT="..."; $env:API_KEY_LABELS="..."   # or use .env
+$env:API_KEY_ADMIN="<admin key>"
+$env:API_KEY_PREDICT="<predict key>"
+$env:API_KEY_LABELS="<labels key>"
 uvicorn service.api:create_app --factory --port 8000
-python -m simulation.replay --pipeline local      # in a second terminal
+```
+
+In a second terminal with the virtual environment activated:
+
+```powershell
+python -m simulation.replay --pipeline local
 python -m simulation.summarize
 ```
 
-## Example request
+Local reports are written to `work/reports/simulation/`.
 
-```powershell
-curl -X POST http://localhost:8000/predict -H "X-API-Key: <predict key>" -H "Content-Type: application/json" -d "@example_request.json"
-```
+## 2. File structure
 
-```json
-{"prediction_id": "0b0c…", "application_id": "APP-1", "fraud_probability": 0.0151,
- "flagged_for_review": false, "threshold": 0.0550, "model_version": "v3",
- "scored_at": "2026-09-28T14:10:06", "duplicate": false}
-```
+| Path | Purpose |
+| --- | --- |
+| `fraud/` | Shared preprocessing, scoring, drift, fairness, model registry, and lineage code |
+| `training/` | Dataset splits, model training, packaging, and evaluation |
+| `service/` | FastAPI endpoints, request validation, access control, and database logging |
+| `pipeline/` | Monitoring, retraining, promotion, deployment, and smoke tests |
+| `simulation/` | Generate and replay the simulated year; summarize results |
+| `configs/` | Training, monitoring, retraining, and drift settings |
+| `docker/`, `docker-compose.yml` | API, PostgreSQL, MLflow, and Jenkins containers |
+| `jenkins/` | CI, monitoring, retraining jobs, and Jenkins configuration |
+| `initial_model/`, `models/` | Frozen initial model and generated deployment bundles |
+| `data/`, `work/` | Local datasets and generated reports |
+| `tests/` | Unit tests |
+| `charts/`, `RESULTS.md` | Result charts and detailed findings |
 
-Missing values are sent as `null`. Unknown fields, missing fields and non-numbers are
-rejected with HTTP 422. Sending the same request twice returns the stored result
-(`duplicate: true`), so clients can safely retry.
+## 3. Findings
 
-## How drift is simulated (`configs/drift_scenario.json`)
+The full-label run processed **286,300 applications** across one simulated year, with **52 successful monitoring builds**, **14 trainings**, and **11 model promotions**.
 
-The labels in BAF are real, so adding noise to features would not be a realistic
-drift. Every drift type keeps the rows consistent:
+| Approach | Recall | False-positive rate | Sent to review |
+| --- | ---: | ---: | ---: |
+| Retraining + weekly threshold adjustment | 48.3% | 5.2% | 5.7% |
+| Frozen model + weekly threshold adjustment | 46.8% | 5.2% | 5.7% |
+| Frozen model + fixed threshold | 53.8% | 7.7% | 8.3% |
 
-| Months | Injected change | Type | Expected signal |
-| --- | --- | --- | --- |
-| 1–2 | none (control) | – | nothing |
-| 3–12 | "downturn": applicants with above-median income and time at the address are dropped more often (rejection sampling), and more applications (20,000 → 25,000 per month) | covariate shift | small — should *not* alarm |
-| 4–12 | some legitimate rows dropped | prior shift | fraud rate ↑ |
-| 5–12 | new credit bureau: `credit_risk_score` + 600 | upstream change | PSI on an important feature, alert rate |
-| 7–12 | 20–50 % of fraud cases copy normal applicants' top signals | concept drift | almost invisible in the data → only delayed labels |
-| 10 | 30 % via a new mobile form: no session length, unknown device | data-quality incident | block retraining, alert |
+- **Threshold adjustment provided most of the benefit:** it restored review workload within one week after the credit-bureau scale change. The fixed-threshold model caught more fraud but required substantially more reviews.
+- **Retraining added a modest gain:** +1.5 percentage points of recall at the same review workload with all labels; no gain across three realistic-label runs.
+- **Monitoring caught distinct problems:** feature drift exposed the scale change, delayed labels exposed fraudsters' camouflage, and data-quality checks blocked retraining during the mobile-form incident.
+- **Key limitations remain:** the 5% audit yielded too few missed-fraud labels to assess recall reliably; legitimate applicants aged 50+ had roughly four times the false-positive rate of younger applicants. BAF is synthetic banking data used as a proxy for benefit applications.
 
-The simulation also keeps the natural drift between the real BAF months 4–7. Each month keeps
-pool rows (in their original order) until it has its planned number of applications, so the
-downturn months are the biggest ones and no row is used twice.
-
-## Retraining rules (`configs/monitoring.json`, `configs/retraining.json`)
-
-- **Schedule:** 28 days after the last training.
-- **Data drift:** importance-weighted drift share ≥ 0.25, or PSI ≥ 0.25 on a feature
-  with ≥ 5 % model importance, or the alert rate moved by ≥ 4 standard errors.
-  Because labels arrive 4 weeks late, a drift alarm waits until ≥ 3,000 applications
-  from the drifted period are labelled.
-- **Performance:** recall of the served scores below a fixed target of 49 % (v1's validation
-  recall at the 5.5 % review share minus 10 pp; before, each model was compared with its own noisy
-  holdout recall, which fell with the drift), or FPR above 6 % (≥ 100 fraud labels in the last 28 days). Recall is only judged
-  with ≥ 20 labelled frauds that the model missed (with realistic labels these only come from
-  the audit, otherwise the estimate is meaningless).
-- **Blocked** during data-quality incidents; 14-day cooldown; ≥ 12,000 new labels needed.
-- **Fast loop (no labels):** every week the served threshold is reset so that 5.5 % of last
-  week's applications would have been sent to review (review capacity). Written to
-  `models/current.json`, picked up by the API without a restart; not changed during a
-  data-quality incident.
-- **Training:** CPU CatBoost with the tuned hyperparameters and a fixed 377 trees (no early
-  stopping: on selectively labelled validation data it stopped after 1–2 trees).
-- **Calibration:** the API returns probabilities, so the weekly job also checks them against the
-  delayed labels (Brier score, ECE, mean probability / fraud rate; warning outside 0.67–1.5). Each
-  retrained model is recalibrated on its holdout with one odds factor (mean probability = fraud rate);
-  the order of the applications, and so the review list, does not change.
-- **Promotion gate:** candidate and champion on the same newest holdout, both at the same
-  workload (5.5 % of all applications of the holdout weeks). Sanity check (average precision
-  ≥ 2× the fraud rate), then promote if the recall is at most 2 pp lower (paired bootstrap
-  interval reported). With fewer than 10 labelled missed frauds recall cannot be compared: the
-  newer model is promoted unless it flags more than 15 pp fewer of the known (reviewed) frauds.
-
-## Results
-
-One simulated year with all labels (286,300 applications):
-
-| | Recall | FPR | Sent to review | Fraud in top 5 % |
-| --- | ---: | ---: | ---: | ---: |
-| Both loops (retraining + workload threshold) | 48.3 % | 5.2 % | 5.7 % | 44.6 % |
-| Fast loop only (frozen v1 + workload threshold) | 46.8 % | 5.2 % | 5.7 % | 42.9 % |
-| No MLOps (frozen v1, fixed threshold) | 53.8 % | 7.7 % | 8.3 % | 42.9 % |
-
-- Every injected change was detected by the signal it was designed for; after the new
-  credit-bureau scale the review share was back to plan after **one week**.
-- 14 trainings, 11 promoted, 3 rejected by the gate (all before the scale change), retraining
-  blocked during the data-quality incident.
-- The fast loop does most of the work (almost a third fewer reviews than the frozen model);
-  retraining adds a modest ranking gain with all labels (+1.5 pp recall at the same workload,
-  mostly in the camouflage months) and none with realistic labels (three 5 % audit samples:
-  recall 45.8–46.6 %, recall never measurable).
-
-![Full system vs no MLOps](charts/compare/all_labels-system_vs_all_labels-no_mlops/overview.png)
-
-All result charts are in [charts/](charts/).
-
-## Access control
-
-- Four API keys with different roles (predict, labels, monitor, admin); keys ≥ 16
-  characters, compared in constant time, never in the code (`.env` is git-ignored).
-- PostgreSQL has no published port; all ports are bound to `127.0.0.1`.
-- MLflow runs with the basic-auth app; Jenkins has no anonymous access.
-- The API container runs as a non-root user and mounts the models read-only.
-- Logs never contain application features.
-
-## Limitations
-
-- BAF is synthetic bank-account data, used as a stand-in for benefit applications.
-  Some features (e.g. `velocity_6h`) need a backend that computes them at request time.
-- **Open issue (outside the scope of this project): recall with realistic labels.** In reality only
-  reviewed applications get a label (selection bias). The main run releases labels for all
-  applications; the realistic label mode shows that even a 5 % random audit finds only ~8 missed
-  frauds per 4 weeks, while the monitor needs 20 and the promotion gate 10. So with realistic labels
-  recall is never measured, the performance trigger cannot fire and the gate can only stop clearly
-  broken models, not pick the better one. I keep this logic on purpose (it refuses to act on noise).
-  Possible next steps: use the review hit rate (share of reviewed cases that are fraud) as a
-  performance signal, and a champion/challenger in shadow mode that reviews the cases only one
-  model flags, so the gate gets a fair comparison.
-- The workload threshold keeps the number of reviews flat; in a real fraud wave more reviews
-  might be needed (the alert-rate signal and the share of reviews that find fraud show it).
-- The model flags legitimate applicants aged 50+ about four times as often as younger
-  ones (FPR 13.1 % vs 3.1 %). This is monitored but not fixed.
-- The 5 % FPR limit is met on validation data only; it is not a guarantee.
+See [RESULTS.md](RESULTS.md) for detailed experiments and limitations, and [charts/](charts/) for visual results.
