@@ -24,7 +24,7 @@ export MLFLOW_DISABLE_AGENT_HINT=1
 export PYTHONWARNINGS=ignore
 PY=./.venv-check/Scripts/python.exe
 
-$PY package_model.py --models-dir "$MODEL_DIR" > "$RUN/package.log" 2>&1
+$PY -m training.package_model --models-dir "$MODEL_DIR" > "$RUN/package.log" 2>&1
 $PY -m uvicorn service.api:create_app --factory --port "$PORT" > "$RUN/api.log" 2>&1 &
 API_PID=$!
 for i in $(seq 1 60); do

@@ -10,10 +10,10 @@ from catboost import CatBoostClassifier
 import mlflow
 import pandas as pd
 
-from preprocessing import prepare_dataset
-from scoring import fraud_probabilities
-from train import PROJECT_DIR, file_hash, setup_mlflow
-from visualization import _slug, create_evaluation_report
+from fraud.preprocessing import prepare_dataset
+from fraud.scoring import fraud_probabilities
+from training.train import PROJECT_DIR, file_hash, setup_mlflow
+from training.visualization import _slug, create_evaluation_report
 
 
 def main():
@@ -32,7 +32,7 @@ def main():
 
     config = json.loads((args.bundle / "training_config.json").read_text(encoding="utf-8"))
     schema = json.loads((args.bundle / "feature_schema.json").read_text(encoding="utf-8"))
-    if schema["preprocessing_sha256"] != file_hash(PROJECT_DIR / "preprocessing.py"):
+    if schema["preprocessing_sha256"] != file_hash(PROJECT_DIR / "fraud" / "preprocessing.py"):
         parser.error("This bundle used different preprocessing. Use its matching preprocessing code to generate scores.")
     model = CatBoostClassifier()
     model.load_model(str(args.bundle / "model.cbm"))

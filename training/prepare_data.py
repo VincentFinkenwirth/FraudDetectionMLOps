@@ -10,7 +10,7 @@ import pandas as pd
 
 
 # Paths and variables
-PROJECT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parents[1]
 DATA_PATH = PROJECT_DIR / "data" / "raw" / "Base.csv"
 OUTPUT_DIR = PROJECT_DIR / "data" / "splits"
 SIMULATION_MONTHS = 12

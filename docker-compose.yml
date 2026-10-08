@@ -1,7 +1,7 @@
 # Local deployment of the whole system.
 #
 #   1. cp .env.example .env   (and put in your own random values)
-#   2. python package_model.py   (creates models/versions/v1 and models/current.json)
+#   2. python -m training.package_model   (creates models/versions/v1 and models/current.json)
 #   3. docker compose up -d --build
 #
 # Ports are bound to 127.0.0.1, so only this computer can reach the services.

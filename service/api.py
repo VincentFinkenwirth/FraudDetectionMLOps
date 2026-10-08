@@ -38,9 +38,9 @@ from fastapi.security import APIKeyHeader
 from sqlalchemy import delete, distinct, func, select, text
 from sqlalchemy.exc import IntegrityError
 
-import model_registry
-from preprocessing import FEATURE_COLUMNS
-from scoring import FraudScorer
+from fraud import model_registry
+from fraud.preprocessing import FEATURE_COLUMNS
+from fraud.scoring import FraudScorer
 from service import db
 from service.schemas import (
     Application, BatchRequest, BatchResponse, LabelBatch, LabelResponse, Prediction,

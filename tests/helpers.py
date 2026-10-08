@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 from catboost import CatBoostClassifier
 
-from preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS, TARGET_COLUMN, prepare_dataset
-from train import calibrated_config, evaluate_model, write_bundle
+from fraud.preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS, TARGET_COLUMN, prepare_dataset
+from training.train import calibrated_config, evaluate_model, write_bundle
 
 CATEGORIES = {
     "payment_type": ["AA", "AB", "AC", "AD"],

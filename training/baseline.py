@@ -1,6 +1,6 @@
 """Baseline: logistic regression, trained and judged exactly like the CatBoost model.
 
-    python baseline.py        # -> work/reports/baseline/ and docs/results/baseline.json
+    python -m training.baseline   # -> work/reports/baseline/ and docs/results/baseline.json
 
 "Why CatBoost and not something simpler?" should be answered with a number,
 so this script trains a logistic regression on the same training split, picks
@@ -30,15 +30,15 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-import model_registry
-from fairness import fpr_by_age
-from preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS, prepare_dataset
-from scoring import FraudScorer
-from train import select_threshold_at_fpr, setup_mlflow
-from visualization import calculate_metrics
+from fraud import model_registry
+from fraud.fairness import fpr_by_age
+from fraud.preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS, prepare_dataset
+from fraud.scoring import FraudScorer
+from training.train import select_threshold_at_fpr, setup_mlflow
+from training.visualization import calculate_metrics
 
 
-PROJECT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parents[1]
 MAX_FPR = 0.05
 NUMERIC_FEATURES = [c for c in FEATURE_COLUMNS if c not in CATEGORICAL_FEATURES]
 

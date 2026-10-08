@@ -4,13 +4,13 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from baseline import build_baseline
-from preprocessing import TARGET_COLUMN, prepare_dataset
+from training.baseline import build_baseline
+from fraud.preprocessing import TARGET_COLUMN, prepare_dataset
 from simulation.build_months import build_all, keep_probability
 from simulation.replay import redraw_audit
 from simulation.summarize import EXPORT_COLUMNS, applications_table, frozen_workload_flags
-from train import calibrated_config, select_threshold_at_fpr, train_model, use_cpu
-from visualization import calculate_metrics
+from training.train import calibrated_config, select_threshold_at_fpr, train_model, use_cpu
+from training.visualization import calculate_metrics
 from tests.helpers import make_applications, make_bundle, temp_dir
 
 SCENARIO = {

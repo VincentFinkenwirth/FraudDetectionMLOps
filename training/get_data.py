@@ -8,7 +8,7 @@ file Base.csv), e.g. with the Kaggle command line tool:
 
 Then run:
 
-    python get_data.py
+    python -m training.get_data
 
 It checks that the file is exactly the one I used (SHA-256 from
 data/splits/split_metadata.json of my run) and creates the splits with
@@ -19,9 +19,7 @@ import hashlib
 import sys
 from pathlib import Path
 
-import prepare_data
-
-
+from training import prepare_data
 EXPECTED_SHA256 = "7bf10a37ce07e72e14c1b09e5efee3d27261baff4facc7da767b0474dcf9b809"
 
 

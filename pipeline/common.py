@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import requests
 
-import model_registry
+from fraud import model_registry
 from service import db
 
 

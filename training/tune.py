@@ -11,7 +11,7 @@ from pathlib import Path
 
 import optuna
 
-from train import (
+from training.train import (
     PROJECT_DIR,
     add_common_arguments,
     file_hash,
@@ -86,7 +86,7 @@ def check_study_context(study, config, data_info):
         "base_config": config,
         "data_hashes": {name: details["sha256"] for name, details in data_info.items()},
         "code_hashes": {name: file_hash(PROJECT_DIR / name) for name in [
-            "preprocessing.py", "train.py", "tune.py", "visualization.py",
+            "fraud/preprocessing.py", "training/train.py", "training/tune.py", "training/visualization.py",
         ]},
         "versions": {name: version(name) for name in [
             "catboost", "pandas", "numpy", "scikit-learn", "optuna", "mlflow", "matplotlib",

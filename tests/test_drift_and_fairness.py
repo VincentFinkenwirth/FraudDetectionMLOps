@@ -2,9 +2,9 @@ import unittest
 
 import numpy as np
 
-from drift import build_reference_profile, compare_to_reference, psi
-from fairness import fpr_by_age
-from preprocessing import FEATURE_COLUMNS, prepare_features
+from fraud.drift import build_reference_profile, compare_to_reference, psi
+from fraud.fairness import fpr_by_age
+from fraud.preprocessing import FEATURE_COLUMNS, prepare_features
 from tests.helpers import make_applications
 
 

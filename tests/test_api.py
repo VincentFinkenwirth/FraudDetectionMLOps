@@ -5,8 +5,8 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-import model_registry
-from preprocessing import FEATURE_COLUMNS
+from fraud import model_registry
+from fraud.preprocessing import FEATURE_COLUMNS
 from service.api import Settings, create_app
 from service.schemas import ApplicationFeatures
 from tests.helpers import make_applications, make_bundle, temp_dir

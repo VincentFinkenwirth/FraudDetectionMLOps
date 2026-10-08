@@ -8,15 +8,15 @@ from unittest import mock
 import numpy as np
 import pandas as pd
 
-import model_registry
+from fraud import model_registry
 from pipeline.common import load_json
 from pipeline.common import effective_count
 from pipeline.monitor import decide, drifted_labels_in_fit, served_performance
 from pipeline.retrain import (
     NotEnoughData, paired_recall_difference, promotion_decision, run_all, stage_deploy, stage_snapshot,
 )
-from preprocessing import FEATURE_COLUMNS, TARGET_COLUMN
-from scoring import FraudScorer
+from fraud.preprocessing import FEATURE_COLUMNS, TARGET_COLUMN
+from fraud.scoring import FraudScorer
 from service import db
 from simulation.replay import select_labels
 from tests.helpers import make_applications, make_bundle, temp_dir

@@ -41,7 +41,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.ticker import FuncFormatter, PercentFormatter
 from scipy.stats import binomtest
 
-from fairness import fpr_by_age
+from fraud.fairness import fpr_by_age
 from pipeline.common import PROJECT_DIR, load_json
 from simulation.summarize import top_share_recall
 

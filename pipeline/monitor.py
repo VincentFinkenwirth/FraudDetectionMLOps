@@ -44,17 +44,17 @@ import mlflow
 import numpy as np
 from sklearn.metrics import average_precision_score
 
-import model_registry
-from drift import compare_to_reference
-from fairness import fpr_by_age
+from fraud import model_registry
+from fraud.drift import compare_to_reference
+from fraud.fairness import fpr_by_age
 from pipeline.common import (
     PROJECT_DIR, api_settings, effective_count, load_json, models_dir, parse_time, reload_api, to_jsonable,
     week_number, workload_threshold, write_json,
 )
-from preprocessing import prepare_features
-from scoring import FraudScorer, calibration_summary
+from fraud.preprocessing import prepare_features
+from fraud.scoring import FraudScorer, calibration_summary
 from service import db
-from train import setup_mlflow
+from training.train import setup_mlflow
 
 
 DEFAULT_CONFIG = "configs/monitoring.json"

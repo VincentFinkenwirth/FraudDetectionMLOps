@@ -22,15 +22,15 @@ import pandas as pd
 from catboost import CatBoostClassifier, Pool
 from sklearn.metrics import roc_curve
 
-from drift import build_reference_profile
-from fairness import fpr_by_age
-from lineage import code_lineage
-from preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS, prepare_dataset, prepare_features
-from scoring import CALIBRATION_METHOD, class_weight_ratio, fraud_probabilities
-from visualization import calculate_metrics, create_evaluation_report
+from fraud.drift import build_reference_profile
+from fraud.fairness import fpr_by_age
+from fraud.lineage import code_lineage
+from fraud.preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS, prepare_dataset, prepare_features
+from fraud.scoring import CALIBRATION_METHOD, class_weight_ratio, fraud_probabilities
+from training.visualization import calculate_metrics, create_evaluation_report
 
 
-PROJECT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = PROJECT_DIR / "configs" / "training.json"
 DEFAULT_TRAIN = PROJECT_DIR / "data" / "splits" / "train.csv"
 DEFAULT_VAL = PROJECT_DIR / "data" / "splits" / "val.csv"
@@ -319,9 +319,9 @@ def write_bundle(bundle_dir, model, saved_config, metrics, reference_data, refer
     write_json(bundle_dir / "feature_schema.json", {
         "feature_columns": FEATURE_COLUMNS,
         "categorical_features": CATEGORICAL_FEATURES,
-        "preprocessing_sha256": file_hash(PROJECT_DIR / "preprocessing.py"),
+        "preprocessing_sha256": file_hash(PROJECT_DIR / "fraud" / "preprocessing.py"),
     })
-    shutil.copy2(PROJECT_DIR / "preprocessing.py", bundle_dir / "preprocessing.py")
+    shutil.copy2(PROJECT_DIR / "fraud" / "preprocessing.py", bundle_dir / "preprocessing.py")
 
     importance = dict(zip(model.feature_names_, model.get_feature_importance()))
     write_json(bundle_dir / "reference_profile.json", build_reference_profile(
@@ -335,7 +335,7 @@ def write_bundle(bundle_dir, model, saved_config, metrics, reference_data, refer
         "catboost_best_scores": model.get_best_score(),
         "effective_model_params": model.get_params(),
         "training_code_sha256": file_hash(Path(__file__)),
-        "visualization_code_sha256": file_hash(PROJECT_DIR / "visualization.py"),
+        "visualization_code_sha256": file_hash(PROJECT_DIR / "training" / "visualization.py"),
         "library_versions": {name: version(name) for name in [
             "catboost", "pandas", "numpy", "scikit-learn", "mlflow", "matplotlib",
         ]},

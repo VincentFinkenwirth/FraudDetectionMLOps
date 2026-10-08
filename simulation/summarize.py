@@ -30,12 +30,12 @@ import pandas as pd
 from sklearn.metrics import average_precision_score
 from sqlalchemy import select
 
-import model_registry
-from fairness import fpr_by_age
+from fraud import model_registry
+from fraud.fairness import fpr_by_age
 from pipeline.common import PROJECT_DIR, load_json, parse_time
-from scoring import FraudScorer
+from fraud.scoring import FraudScorer
 from service import db
-from visualization import ChartTheme
+from training.visualization import ChartTheme
 
 
 THEME = ChartTheme()

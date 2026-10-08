@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-PROJECT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parents[1]
 
 
 def default_models_dir():
@@ -86,7 +86,7 @@ def read_current(models_dir):
 def current_bundle_dir(models_dir):
     current = read_current(models_dir)
     if current is None:
-        raise FileNotFoundError(f"No deployed model in {models_dir}. Run package_model.py first.")
+        raise FileNotFoundError(f"No deployed model in {models_dir}. Run python -m training.package_model first.")
     return version_dir(models_dir, current["version"])
 
 

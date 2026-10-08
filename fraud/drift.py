@@ -19,7 +19,7 @@ the model's importance changed noticeably.
 import numpy as np
 import pandas as pd
 
-from preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS
+from fraud.preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS
 
 
 PSI_THRESHOLD = 0.10

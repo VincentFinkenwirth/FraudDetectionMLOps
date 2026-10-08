@@ -48,21 +48,21 @@ import numpy as np
 import pandas as pd
 import requests
 
-import model_registry
-from fairness import fpr_by_age
+from fraud import model_registry
+from fraud.fairness import fpr_by_age
 from pipeline.common import (
     PROJECT_DIR, api_settings, effective_count, load_json, models_dir, parse_time, to_jsonable, workload_threshold,
     write_json,
 )
-from preprocessing import FEATURE_COLUMNS, TARGET_COLUMN, prepare_features
-from lineage import code_lineage
-from scoring import FraudScorer, calibration_summary, class_weight_ratio, fit_prior_adjustment, fraud_probabilities
+from fraud.preprocessing import FEATURE_COLUMNS, TARGET_COLUMN, prepare_features
+from fraud.lineage import code_lineage
+from fraud.scoring import FraudScorer, calibration_summary, class_weight_ratio, fit_prior_adjustment, fraud_probabilities
 from service import db
-from train import (
+from training.train import (
     calibrated_config, evaluate_model, file_hash, load_config, numeric_metrics, row_weights, setup_mlflow,
     train_model, use_cpu, write_bundle,
 )
-from visualization import calculate_metrics
+from training.visualization import calculate_metrics
 
 
 DEFAULT_CONFIG = "configs/retraining.json"

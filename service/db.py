@@ -20,7 +20,7 @@ from sqlalchemy import (
     UniqueConstraint, create_engine, func, select,
 )
 
-from preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS
+from fraud.preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]

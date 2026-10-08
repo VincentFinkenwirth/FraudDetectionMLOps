@@ -4,8 +4,8 @@ import unittest
 
 import numpy as np
 
-from preprocessing import prepare_features
-from scoring import FraudScorer, class_weight_ratio, correct_for_class_weights
+from fraud.preprocessing import prepare_features
+from fraud.scoring import FraudScorer, class_weight_ratio, correct_for_class_weights
 from tests.helpers import make_applications, make_bundle, temp_dir
 
 

@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from preprocessing import FEATURE_COLUMNS
+from fraud.preprocessing import FEATURE_COLUMNS
 from simulation.build_months import DEFAULT_OUTPUT, DEFAULT_SCENARIO, load_scenario
 
 

@@ -13,7 +13,7 @@ same rule (max recall with FPR < 5 %) on the corrected validation scores and
 checks that exactly the same applications are flagged as before. Then it
 writes a complete bundle to models/versions/v1.
 
-    python package_model.py            # creates v1 and deploys it if nothing is deployed yet
+    python -m training.package_model   # creates v1 and deploys it if nothing is deployed yet
 """
 
 import argparse
@@ -26,10 +26,10 @@ import pandas as pd
 from catboost import CatBoostClassifier
 from sklearn.metrics import brier_score_loss, log_loss
 
-import model_registry
-from preprocessing import prepare_features
-from scoring import FraudScorer, class_weight_ratio, text_hash
-from train import PROJECT_DIR, calibrated_config, evaluate_model, file_hash, write_bundle
+from fraud import model_registry
+from fraud.preprocessing import prepare_features
+from fraud.scoring import FraudScorer, class_weight_ratio, text_hash
+from training.train import PROJECT_DIR, calibrated_config, evaluate_model, file_hash, write_bundle
 
 
 DEFAULT_SOURCE = PROJECT_DIR / "initial_model"
@@ -42,7 +42,7 @@ def load_legacy_bundle(source):
     metadata = json.loads((source / "metadata.json").read_text(encoding="utf-8"))
     if config.get("probability_calibration"):
         raise ValueError("This bundle is already calibrated; use it directly.")
-    if text_hash(source / "preprocessing.py") != text_hash(PROJECT_DIR / "preprocessing.py"):
+    if text_hash(source / "preprocessing.py") != text_hash(PROJECT_DIR / "fraud" / "preprocessing.py"):
         raise ValueError("The bundle used different preprocessing code than the current project.")
     model = CatBoostClassifier()
     model.load_model(str(source / "model.cbm"))

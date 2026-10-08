@@ -59,7 +59,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from preprocessing import FEATURE_COLUMNS, TARGET_COLUMN
+from fraud.preprocessing import FEATURE_COLUMNS, TARGET_COLUMN
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]

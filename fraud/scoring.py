@@ -23,10 +23,10 @@ import numpy as np
 import catboost
 from catboost import CatBoostClassifier
 
-from preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS, prepare_features
+from fraud.preprocessing import CATEGORICAL_FEATURES, FEATURE_COLUMNS, prepare_features
 
 
-PROJECT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parents[1]
 CALIBRATION_METHOD = "class_weight_prior_correction"
 
 
@@ -163,12 +163,12 @@ class FraudScorer:
         # The model has to expect exactly the features that preprocessing.py creates.
         if schema["feature_columns"] != FEATURE_COLUMNS or schema["categorical_features"] != CATEGORICAL_FEATURES:
             raise ValueError("The bundle was trained with a different feature list.")
-        if check_preprocessing and text_hash(self.bundle_dir / "preprocessing.py") != text_hash(PROJECT_DIR / "preprocessing.py"):
+        if check_preprocessing and text_hash(self.bundle_dir / "preprocessing.py") != text_hash(PROJECT_DIR / "fraud" / "preprocessing.py"):
             raise ValueError("preprocessing.py differs from the copy saved with this model bundle.")
 
         calibration = self.config.get("probability_calibration")
         if not calibration or calibration.get("method") != CALIBRATION_METHOD:
-            raise ValueError("This bundle has no probability calibration. Run package_model.py first.")
+            raise ValueError("This bundle has no probability calibration. Run python -m training.package_model first.")
         if self.config.get("threshold_scale") != "probability":
             raise ValueError("The saved threshold must be on the probability scale.")
 

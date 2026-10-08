@@ -9,10 +9,10 @@ from unittest import mock
 
 import numpy as np
 
-import model_registry
+from fraud import model_registry
 from pipeline.common import load_json, workload_threshold
 from pipeline.monitor import workload_step
-from scoring import FraudScorer
+from fraud.scoring import FraudScorer
 from tests.helpers import make_applications, make_bundle, temp_dir
 
 

@@ -2,7 +2,7 @@
 
 I wrote the 29 features out by hand so they show up with a description in the
 automatic OpenAPI docs (/docs). A unit test checks that this list is exactly
-the FEATURE_COLUMNS list from preprocessing.py.
+the FEATURE_COLUMNS list from fraud/preprocessing.py.
 
 Missing values: send JSON null. For the columns where the original data uses
 -1 as "missing", sending -1 is also fine; preprocessing.py handles both.

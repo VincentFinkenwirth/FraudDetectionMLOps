@@ -7,8 +7,8 @@ from unittest import mock
 
 import numpy as np
 
-import lineage
-from scoring import FraudScorer, calibration_summary, correct_for_class_weights, fit_prior_adjustment
+from fraud import lineage
+from fraud.scoring import FraudScorer, calibration_summary, correct_for_class_weights, fit_prior_adjustment
 from tests.helpers import make_applications, make_bundle, temp_dir
 
 
@@ -122,13 +122,13 @@ class LineageTests(unittest.TestCase):
 
     def test_without_git_the_jenkins_variable_is_used(self):
         env = {"GIT_COMMIT": "abc123", "BUILD_TAG": "jenkins-fraud-retrain-7"}
-        with mock.patch.dict(os.environ, env), mock.patch("lineage.run_git", return_value=None):
+        with mock.patch.dict(os.environ, env), mock.patch("fraud.lineage.run_git", return_value=None):
             info = lineage.code_lineage()
         self.assertEqual((info["git_commit"], info["git_dirty"]), ("abc123", None))
         self.assertEqual(info["trained_by"], "jenkins-fraud-retrain-7")
 
     def test_nothing_known(self):
-        with mock.patch.dict(os.environ, {}, clear=True), mock.patch("lineage.run_git", return_value=None):
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch("fraud.lineage.run_git", return_value=None):
             info = lineage.code_lineage()
         self.assertIsNone(info["git_commit"])
         self.assertEqual(info["trained_by"], "local")

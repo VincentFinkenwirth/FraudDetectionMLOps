@@ -9,7 +9,7 @@ WORKDIR /app
 COPY requirements-api.lock .
 RUN pip install --no-cache-dir -r requirements-api.lock
 
-COPY preprocessing.py scoring.py model_registry.py ./
+COPY fraud/__init__.py fraud/preprocessing.py fraud/scoring.py fraud/model_registry.py fraud/
 COPY service/ service/
 
 # Do not run as root inside the container.

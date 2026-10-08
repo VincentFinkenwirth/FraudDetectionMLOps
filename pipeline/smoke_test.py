@@ -18,8 +18,8 @@ import numpy as np
 import pandas as pd
 
 from pipeline.common import PROJECT_DIR
-from scoring import FraudScorer
-from train import calibrated_config, evaluate_model, load_config, train_model, use_cpu, write_bundle
+from fraud.scoring import FraudScorer
+from training.train import calibrated_config, evaluate_model, load_config, train_model, use_cpu, write_bundle
 
 
 def run_smoke_test(output, train_rows=20000, val_rows=10000, trees=20):
