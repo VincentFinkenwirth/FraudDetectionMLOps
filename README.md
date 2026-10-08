@@ -37,8 +37,7 @@ flowchart LR
 | Part | File(s) | What it does |
 | --- | --- | --- |
 | Data splits | `training/prepare_data.py`, `training/get_data.py` | Time-ordered splits of the BAF `Base.csv` (train / val / test / simulation pool / reserve). |
-| Model training | `training/train.py`, `training/tune.py`, `fraud/preprocessing.py` | CatBoost, Optuna search for max. recall with FPR < 5 %. |
-| Baseline | `training/baseline.py` | Logistic regression with the same data and threshold rule, to justify CatBoost. |
+| Model training | `training/train.py`, `fraud/preprocessing.py`, `initial_model/` | CatBoost, hyperparameters tuned with Optuna for max. recall with FPR < 5 % (the tuned model is `initial_model/`). |
 | Probabilities | `fraud/scoring.py`, `training/package_model.py` | Corrects the class-weighted scores to real probabilities; builds deployable bundle v1. |
 | REST API | `service/api.py`, `service/schemas.py`, `service/db.py` | Scoring, validation, API keys with roles, prediction log, label import, hot model reload. |
 | Drift + fairness | `fraud/drift.py`, `fraud/fairness.py` | PSI per feature, importance-weighted drift share, quality checks, FPR by age group. |
@@ -52,7 +51,7 @@ flowchart LR
 
 ```text
 fraud/            shared code: preprocessing, scoring, model registry, drift, fairness, lineage
-training/         data splits, training, tuning, baseline, packaging of v1, evaluation charts
+training/         data splits, training, packaging of v1, evaluation charts
 service/          REST API
 pipeline/         steps of the Jenkins jobs (monitor, retrain, smoke test)
 simulation/       building and replaying the simulated year, summaries, result charts
@@ -61,7 +60,6 @@ docker/ jenkins/  container images and Jenkins jobs (configuration as code)
 initial_model/    the frozen first model (v1)
 tests/            unit tests
 charts/           result charts of the simulated year
-work/runs/        script to run a simulated year locally without Docker
 ```
 
 The scripts are started from the project folder as modules, e.g. `python -m training.train`.
@@ -127,21 +125,7 @@ docker compose exec -w /project jenkins python -m simulation.summarize --output 
 By default every application gets its true label 4 weeks later. `--label-mode realistic`
 only labels the flagged (reviewed) applications plus a random 5 % audit of the others,
 weighted by 1 / audit share; the rest stays unknown. `--audit-seed N` draws the audit sample
-with another seed.
-
-Several local runs can run at the same time, each with its own port, database and models folder:
-
-```bash
-bash work/runs/run_local.sh realistic_a 8101 realistic        # default audit sample
-bash work/runs/run_local.sh realistic_b 8102 realistic 1      # audit seed 1
-```
-The tables end up in `work/docker_reports/` (the local runs write to `work/runs/<name>/report/`).
-Charts and the comparison table are made from them with:
-
-```powershell
-python -m simulation.plot_results --run all_labels=work/docker_reports --run audit_a=work/runs/realistic_a/report
-python -m simulation.compare_runs --run all_labels=work/docker_reports --run realistic_a=work/runs/realistic_a/report
-```
+with another seed. The tables end up in `work/docker_reports/`.
 
 To start again from v1, run `docker compose down -v`, delete `models/` and run
 `python -m training.package_model`.
@@ -241,7 +225,7 @@ One simulated year with all labels (286,300 applications):
 
 ![Full system vs no MLOps](charts/compare/all_labels-system_vs_all_labels-no_mlops/overview.png)
 
-All result charts are in [charts/](charts/) (`python -m simulation.plot_results`).
+All result charts are in [charts/](charts/).
 
 ## Access control
 

@@ -4,8 +4,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from training.baseline import build_baseline
-from fraud.preprocessing import TARGET_COLUMN, prepare_dataset
+from fraud.preprocessing import TARGET_COLUMN
 from simulation.build_months import build_all, keep_probability
 from simulation.replay import redraw_audit
 from simulation.summarize import EXPORT_COLUMNS, applications_table, frozen_workload_flags
@@ -170,12 +169,6 @@ class TrainingHelperTests(unittest.TestCase):
         duplicated = calculate_metrics(np.append(y, 1), np.append(scores, 0.2), 0.5)
         self.assertAlmostEqual(weighted["recall"], duplicated["recall"])
         self.assertAlmostEqual(weighted["false_positive_rate"], duplicated["false_positive_rate"])
-
-    def test_baseline_pipeline_gives_probabilities(self):
-        X, y = prepare_dataset(make_applications(1500, seed=4))
-        baseline = build_baseline().fit(X, y)
-        scores = baseline.predict_proba(prepare_dataset(make_applications(300, seed=5))[0])[:, 1]
-        self.assertTrue(((scores >= 0) & (scores <= 1)).all())
 
     def test_use_cpu(self):
         config = {"model_params": {"task_type": "GPU", "devices": "0"}, "fit_params": {}, "threshold": 0.5}

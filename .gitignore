@@ -4,10 +4,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .idea/
-work/*
-!work/runs/
-work/runs/*
-!work/runs/run_local.sh
+work/
 work_*/
 tmp/
 .env
@@ -34,6 +31,15 @@ tasks/
 simulation/presentation_charts.py
 simulation/slide_charts.py
 simulation/guide_charts.py
+# Not needed to run the system: tuning, baseline and analysis scripts that
+# I used to choose the model and to make the result charts (charts/ is in git).
+training/tune.py
+training/baseline.py
+training/report.py
+configs/training_fpr.json
+simulation/compare_runs.py
+simulation/plot_results.py
+tests/test_plot_results.py
 initial_model/initial_test_metrics_raw_scores.json
 
 # Local tooling, credentials and private keys.
