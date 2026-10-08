@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from fraud import model_registry
 from fraud.preprocessing import FEATURE_COLUMNS
-from service.api import Settings, create_app
+from service.api import ModelHolder, Settings, create_app
 from service.schemas import ApplicationFeatures
 from tests.helpers import make_applications, make_bundle, temp_dir
 
@@ -148,6 +148,26 @@ class ApiTests(unittest.TestCase):
         model_registry.set_current(self.models, info["model_version"])
         info = self.client.post("/admin/reload", headers=self.headers("admin")).json()
         self.assertAlmostEqual(info["threshold"], info["bundle_threshold"])
+
+
+class ModelHolderTests(unittest.TestCase):
+    def test_threshold_change_does_not_touch_the_scorer_in_use(self):
+        # A request keeps the scorer it got at the start. If the weekly threshold
+        # changed that object, flags and stored threshold could disagree.
+        folder = temp_dir()
+        self.addCleanup(shutil.rmtree, folder, True)
+        make_bundle(folder / "b1", seed=1)
+        model_registry.publish(folder / "b1", folder / "models", "v1")
+        model_registry.set_current(folder / "models", "v1")
+        holder = ModelHolder(folder / "models", 3600)
+        holder.refresh(force=True)
+        in_use = holder.scorer
+        old_threshold = in_use.threshold
+        model_registry.set_threshold(folder / "models", "v1", 0.99, reason="test")
+        self.assertTrue(holder.refresh())
+        self.assertEqual(in_use.threshold, old_threshold)
+        self.assertAlmostEqual(holder.scorer.threshold, 0.99)
+        self.assertIs(holder.scorer.model, in_use.model)
 
 
 class SettingsTests(unittest.TestCase):

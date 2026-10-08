@@ -374,6 +374,10 @@ def stage_evaluate(run_dir, config, engine, models_folder):
         applications = db.read_predictions(engine, parse_time(snapshot["holdout"]["first_event"]),
                                            parse_time(snapshot["holdout"]["last_event"]) + timedelta(microseconds=1))
         applications = applications.drop_duplicates("application_id")
+        # The holdout itself is already without incident weeks, but this time range
+        # could still contain a shorter incident, so I remove those weeks here too.
+        applications = applications[~quarantine_mask(applications, engine, parse_time(snapshot["as_of"]),
+                                                     config["quarantine_days"])]
         candidate_threshold = workload_threshold(candidate.predict_proba(applications), config["review_share"])
         champion_threshold = workload_threshold(champion.predict_proba(applications), config["review_share"])
     else:

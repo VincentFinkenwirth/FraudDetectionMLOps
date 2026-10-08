@@ -21,6 +21,7 @@ every few seconds (and immediately on POST /admin/reload) and swaps the model
 only after the new one has loaded successfully, so the service stays reachable.
 """
 
+import copy
 import hashlib
 import json
 import logging
@@ -112,8 +113,14 @@ class ModelHolder:
                     # Same model, but the weekly job may have set a new workload threshold.
                     # Changing one number does not need a reload of the model.
                     if wanted_threshold is not None and wanted_threshold != self.scorer.threshold:
+                        # I change a copy and swap it in, instead of changing the scorer that
+                        # requests are using right now. Otherwise a request could flag with the
+                        # old threshold and then store the new one (found in the code review).
+                        # The copy shares the loaded model, so this is still cheap.
                         old_threshold = self.scorer.threshold
-                        self.scorer.use_threshold(wanted_threshold, current.get("threshold_reason", "current.json"))
+                        new_scorer = copy.copy(self.scorer)
+                        new_scorer.use_threshold(wanted_threshold, current.get("threshold_reason", "current.json"))
+                        self.scorer = new_scorer
                         log.info("Threshold of %s: %.5f -> %.5f", self.scorer.version, old_threshold, wanted_threshold)
                         return True
                     return False
