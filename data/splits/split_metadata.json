@@ -1,0 +1,145 @@
+{
+  "source_file": "data/raw/Base.csv",
+  "source_sha256": "7bf10a37ce07e72e14c1b09e5efee3d27261baff4facc7da767b0474dcf9b809",
+  "source_rows": 1000000,
+  "library_versions": {
+    "pandas": "3.0.6"
+  },
+  "source_id_definition": "Zero-based data row in the source CSV, excluding the header.",
+  "split_method": "Consecutive row blocks in the original CSV order, without shuffling or stratification.",
+  "planned_simulation": {
+    "months": 12,
+    "rows_per_month": 30000,
+    "label_delay_months": 1,
+    "note": "The pool is for artificial monthly batches. Drift and label release are added later."
+  },
+  "splits": {
+    "train": {
+      "file": "train.csv",
+      "selection_rule": "Source IDs 0 to 399999, inclusive.",
+      "rows": 400000,
+      "first_source_id": 0,
+      "last_source_id": 399999,
+      "fraud_cases": 3924,
+      "fraud_rate": 0.00981,
+      "by_month": [
+        {
+          "month": 0,
+          "rows": 132440,
+          "fraud_cases": 1500,
+          "fraud_rate": 0.011325883418906675
+        },
+        {
+          "month": 1,
+          "rows": 127620,
+          "fraud_cases": 1198,
+          "fraud_rate": 0.009387243378780755
+        },
+        {
+          "month": 2,
+          "rows": 136979,
+          "fraud_cases": 1198,
+          "fraud_rate": 0.008745866154666044
+        },
+        {
+          "month": 3,
+          "rows": 2961,
+          "fraud_cases": 28,
+          "fraud_rate": 0.009456264775413711
+        }
+      ]
+    },
+    "val": {
+      "file": "val.csv",
+      "selection_rule": "Source IDs 400000 to 499999, inclusive.",
+      "rows": 100000,
+      "first_source_id": 400000,
+      "last_source_id": 499999,
+      "fraud_cases": 901,
+      "fraud_rate": 0.00901,
+      "by_month": [
+        {
+          "month": 3,
+          "rows": 100000,
+          "fraud_cases": 901,
+          "fraud_rate": 0.00901
+        }
+      ]
+    },
+    "test": {
+      "file": "test.csv",
+      "selection_rule": "Source IDs 500000 to 599999, inclusive.",
+      "rows": 100000,
+      "first_source_id": 500000,
+      "last_source_id": 599999,
+      "fraud_cases": 1055,
+      "fraud_rate": 0.01055,
+      "by_month": [
+        {
+          "month": 3,
+          "rows": 47975,
+          "fraud_cases": 463,
+          "fraud_rate": 0.009650859822824388
+        },
+        {
+          "month": 4,
+          "rows": 52025,
+          "fraud_cases": 592,
+          "fraud_rate": 0.01137914464199904
+        }
+      ]
+    },
+    "simulation_pool": {
+      "file": "simulation_pool.csv",
+      "selection_rule": "Source IDs 600000 to 959999, inclusive.",
+      "rows": 360000,
+      "first_source_id": 600000,
+      "last_source_id": 959999,
+      "fraud_cases": 4561,
+      "fraud_rate": 0.012669444444444445,
+      "by_month": [
+        {
+          "month": 4,
+          "rows": 75666,
+          "fraud_cases": 860,
+          "fraud_rate": 0.011365738905188593
+        },
+        {
+          "month": 5,
+          "rows": 119323,
+          "fraud_cases": 1411,
+          "fraud_rate": 0.01182504630289215
+        },
+        {
+          "month": 6,
+          "rows": 108168,
+          "fraud_cases": 1450,
+          "fraud_rate": 0.013405073589231566
+        },
+        {
+          "month": 7,
+          "rows": 56843,
+          "fraud_cases": 840,
+          "fraud_rate": 0.0147775451682705
+        }
+      ]
+    },
+    "reserve": {
+      "file": "reserve.csv",
+      "selection_rule": "Source IDs 960000 to 999999, inclusive.",
+      "rows": 40000,
+      "first_source_id": 960000,
+      "last_source_id": 999999,
+      "fraud_cases": 588,
+      "fraud_rate": 0.0147,
+      "by_month": [
+        {
+          "month": 7,
+          "rows": 40000,
+          "fraud_cases": 588,
+          "fraud_rate": 0.0147
+        }
+      ]
+    }
+  }
+}

@@ -49,8 +49,27 @@ initial_model/initial_test_metrics_raw_scores.json
 *.pem
 *.key
 
-# Base.csv is 213 MB (GitHub allows 100 MB). Download it with get_data.py.
-data/
+# Include prepared data for a clone-and-run submission. Keep the original
+# 203.5 MiB Base.csv and any other local data outside Git.
+/data/*
+!/data/README.md
+!/data/splits/
+/data/splits/*
+!/data/splits/train.csv
+!/data/splits/val.csv
+!/data/splits/test.csv
+!/data/splits/simulation_pool.csv
+!/data/splits/reserve.csv
+!/data/splits/split_metadata.json
+!/data/simulation/
+/data/simulation/*
+!/data/simulation/summary.json
+!/data/simulation/applications/
+/data/simulation/applications/*
+!/data/simulation/applications/month_*.csv
+!/data/simulation/labels/
+/data/simulation/labels/*
+!/data/simulation/labels/month_*.csv
 
 # Deployed model versions are created by package_model.py and the pipeline.
 # The frozen initial model (125 KB) is in initial_model/ and IS in git.

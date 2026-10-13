@@ -1,0 +1,355 @@
+{
+  "scenario": {
+    "description": "Twelve simulated months built from simulation_pool.csv. The pool is read in its original order (so the natural drift of the BAF data between real months 4-7 is kept); each month keeps rows with the drift probabilities below until it has its planned number of applications ('rows'). The downturn brings more applications (20,000 -> 25,000 per month). 'audit_share' = share of ALL applications that is checked by hand at random (realistic label mode).",
+    "seed": 2026,
+    "start_date": "2025-01-06T00:00:00",
+    "weeks_per_month": 4,
+    "rows_per_month": 20000,
+    "label_delay_weeks": 4,
+    "audit_share": 0.05,
+    "camouflage_features": [
+      "device_os",
+      "housing_status",
+      "has_other_cards",
+      "phone_home_valid",
+      "keep_alive_session"
+    ],
+    "months": [
+      {
+        "month": 1,
+        "story": "Normal operation (control month)",
+        "rows": 20000
+      },
+      {
+        "month": 2,
+        "story": "Normal operation (control month)",
+        "rows": 20000
+      },
+      {
+        "month": 3,
+        "story": "Economic downturn starts: more applicants with low income who recently moved (+12 % applications)",
+        "rows": 22500,
+        "downturn": 0.5
+      },
+      {
+        "month": 4,
+        "story": "Downturn gets stronger (+19 % applications) and the share of fraud rises",
+        "rows": 23800,
+        "downturn": 0.65,
+        "drop_legit": 0.1
+      },
+      {
+        "month": 5,
+        "story": "New credit bureau: credit_risk_score is now reported on a new scale (old value + 600)",
+        "rows": 25000,
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "score_offset": 600
+      },
+      {
+        "month": 6,
+        "story": "Downturn continues (persistent shift)",
+        "rows": 25000,
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "score_offset": 600
+      },
+      {
+        "month": 7,
+        "story": "Fraudsters start to copy the signals of normal applicants",
+        "rows": 25000,
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.2,
+        "score_offset": 600
+      },
+      {
+        "month": 8,
+        "story": "More fraudsters adapt",
+        "rows": 25000,
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.35,
+        "score_offset": 600
+      },
+      {
+        "month": 9,
+        "story": "Half of the fraud cases are camouflaged",
+        "rows": 25000,
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.5,
+        "score_offset": 600
+      },
+      {
+        "month": 10,
+        "story": "New mobile form: no session length and an unknown device type for 30 % of applications",
+        "rows": 25000,
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.5,
+        "incident": 0.3,
+        "score_offset": 600
+      },
+      {
+        "month": 11,
+        "story": "Mobile form fixed; camouflage continues",
+        "rows": 25000,
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.5,
+        "score_offset": 600
+      },
+      {
+        "month": 12,
+        "story": "Camouflage continues",
+        "rows": 25000,
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.5,
+        "score_offset": 600
+      }
+    ]
+  },
+  "months": [
+    {
+      "month": 1,
+      "story": "Normal operation (control month)",
+      "injected": {},
+      "source_months": [
+        4
+      ],
+      "pool_rows_used": 20000,
+      "rows": 20000,
+      "fraud_cases": 223,
+      "fraud_rate": 0.01115,
+      "camouflaged_fraud_rows": 0,
+      "incident_rows": 0,
+      "first_week": 1,
+      "last_week": 4
+    },
+    {
+      "month": 2,
+      "story": "Normal operation (control month)",
+      "injected": {},
+      "source_months": [
+        4
+      ],
+      "pool_rows_used": 20000,
+      "rows": 20000,
+      "fraud_cases": 220,
+      "fraud_rate": 0.011,
+      "camouflaged_fraud_rows": 0,
+      "incident_rows": 0,
+      "first_week": 5,
+      "last_week": 8
+    },
+    {
+      "month": 3,
+      "story": "Economic downturn starts: more applicants with low income who recently moved (+12 % applications)",
+      "injected": {
+        "downturn": 0.5
+      },
+      "source_months": [
+        4
+      ],
+      "pool_rows_used": 24334,
+      "rows": 22500,
+      "fraud_cases": 235,
+      "fraud_rate": 0.010444444444444444,
+      "camouflaged_fraud_rows": 0,
+      "incident_rows": 0,
+      "first_week": 9,
+      "last_week": 12
+    },
+    {
+      "month": 4,
+      "story": "Downturn gets stronger (+19 % applications) and the share of fraud rises",
+      "injected": {
+        "downturn": 0.65,
+        "drop_legit": 0.1
+      },
+      "source_months": [
+        4,
+        5
+      ],
+      "pool_rows_used": 29487,
+      "rows": 23800,
+      "fraud_cases": 287,
+      "fraud_rate": 0.012058823529411764,
+      "camouflaged_fraud_rows": 0,
+      "incident_rows": 0,
+      "first_week": 13,
+      "last_week": 16
+    },
+    {
+      "month": 5,
+      "story": "New credit bureau: credit_risk_score is now reported on a new scale (old value + 600)",
+      "injected": {
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "score_offset": 600
+      },
+      "source_months": [
+        5
+      ],
+      "pool_rows_used": 31785,
+      "rows": 25000,
+      "fraud_cases": 283,
+      "fraud_rate": 0.01132,
+      "camouflaged_fraud_rows": 0,
+      "incident_rows": 0,
+      "first_week": 17,
+      "last_week": 20
+    },
+    {
+      "month": 6,
+      "story": "Downturn continues (persistent shift)",
+      "injected": {
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "score_offset": 600
+      },
+      "source_months": [
+        5
+      ],
+      "pool_rows_used": 31951,
+      "rows": 25000,
+      "fraud_cases": 274,
+      "fraud_rate": 0.01096,
+      "camouflaged_fraud_rows": 0,
+      "incident_rows": 0,
+      "first_week": 21,
+      "last_week": 24
+    },
+    {
+      "month": 7,
+      "story": "Fraudsters start to copy the signals of normal applicants",
+      "injected": {
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.2,
+        "score_offset": 600
+      },
+      "source_months": [
+        5
+      ],
+      "pool_rows_used": 31987,
+      "rows": 25000,
+      "fraud_cases": 279,
+      "fraud_rate": 0.01116,
+      "camouflaged_fraud_rows": 56,
+      "incident_rows": 0,
+      "first_week": 25,
+      "last_week": 28
+    },
+    {
+      "month": 8,
+      "story": "More fraudsters adapt",
+      "injected": {
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.35,
+        "score_offset": 600
+      },
+      "source_months": [
+        5,
+        6
+      ],
+      "pool_rows_used": 32397,
+      "rows": 25000,
+      "fraud_cases": 321,
+      "fraud_rate": 0.01284,
+      "camouflaged_fraud_rows": 112,
+      "incident_rows": 0,
+      "first_week": 29,
+      "last_week": 32
+    },
+    {
+      "month": 9,
+      "story": "Half of the fraud cases are camouflaged",
+      "injected": {
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.5,
+        "score_offset": 600
+      },
+      "source_months": [
+        6
+      ],
+      "pool_rows_used": 32297,
+      "rows": 25000,
+      "fraud_cases": 303,
+      "fraud_rate": 0.01212,
+      "camouflaged_fraud_rows": 152,
+      "incident_rows": 0,
+      "first_week": 33,
+      "last_week": 36
+    },
+    {
+      "month": 10,
+      "story": "New mobile form: no session length and an unknown device type for 30 % of applications",
+      "injected": {
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.5,
+        "incident": 0.3,
+        "score_offset": 600
+      },
+      "source_months": [
+        6
+      ],
+      "pool_rows_used": 32232,
+      "rows": 25000,
+      "fraud_cases": 325,
+      "fraud_rate": 0.013,
+      "camouflaged_fraud_rows": 162,
+      "incident_rows": 7466,
+      "first_week": 37,
+      "last_week": 40
+    },
+    {
+      "month": 11,
+      "story": "Mobile form fixed; camouflage continues",
+      "injected": {
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.5,
+        "score_offset": 600
+      },
+      "source_months": [
+        6,
+        7
+      ],
+      "pool_rows_used": 31770,
+      "rows": 25000,
+      "fraud_cases": 355,
+      "fraud_rate": 0.0142,
+      "camouflaged_fraud_rows": 178,
+      "incident_rows": 0,
+      "first_week": 41,
+      "last_week": 44
+    },
+    {
+      "month": 12,
+      "story": "Camouflage continues",
+      "injected": {
+        "downturn": 0.8,
+        "drop_legit": 0.1,
+        "camouflage": 0.5,
+        "score_offset": 600
+      },
+      "source_months": [
+        7
+      ],
+      "pool_rows_used": 31263,
+      "rows": 25000,
+      "fraud_cases": 327,
+      "fraud_rate": 0.01308,
+      "camouflaged_fraud_rows": 164,
+      "incident_rows": 0,
+      "first_week": 45,
+      "last_week": 48
+    }
+  ]
+}
