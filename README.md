@@ -99,4 +99,3 @@ The full-label run processed **286,300 applications** across one simulated year,
 - **Monitoring caught distinct problems:** feature drift exposed the scale change, delayed labels exposed fraudsters' camouflage, and data-quality checks blocked retraining during the mobile-form incident.
 - **Key limitations remain:** the 5% audit yielded too few missed-fraud labels to assess recall reliably; legitimate applicants aged 50+ had roughly four times the false-positive rate of younger applicants. BAF is synthetic banking data used as a proxy for benefit applications.
 
-See [RESULTS.md](RESULTS.md) for detailed experiments and limitations, and [charts/](charts/) for visual results.
