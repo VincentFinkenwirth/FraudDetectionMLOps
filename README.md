@@ -4,14 +4,7 @@ IU course DLBDSMTP01, Task 3 (MLOps). A CatBoost REST service prioritizes benefi
 
 ## 1. Setup
 
-Use **Python 3.12**, **Git**, and **Docker with Compose**. Examples use PowerShell.
-
-```powershell
-git clone https://github.com/VincentFinkenwirth/FraudDetectionMLOps.git
-cd FraudDetectionMLOps
-```
-
-The repository includes the frozen initial model, the prepared data splits, and all 12 months of simulation applications and labels. No Kaggle download, initial model training, or simulation generation is needed for the normal setup. The prepared data occupies approximately **296 MiB** before Git compression. Data sources, transformations, and upstream license notices are documented in [data/README.md](data/README.md).
+Use **Python 3.12**, **Git**, and **Docker with Compose**. Run all commands from the repository root; examples use PowerShell.
 
 ### Prepare the data and model
 
@@ -24,11 +17,14 @@ Copy-Item .env.example .env
 
 In `.env`, replace the placeholder API keys, passwords, and `MLFLOW_SECRET_KEY` with random values (API keys need at least 16 characters). Keep the service URLs and repository settings unless your setup differs.
 
-```powershell
-python -m training.package_model    # package the supplied model as v1; no training
-```
+Download `Base.csv` from Kaggle's **Bank Account Fraud Dataset Suite (NeurIPS 2022)** into `data/raw/`. The dataset is not included in Git.
 
-This reads the included validation split, applies the probability correction, and creates `models/versions/v1` and `models/current.json` for the API. Generated deployment bundles remain local and are not tracked in Git.
+```powershell
+python -m training.get_data         # verify the dataset and create data/splits/
+python -m training.package_model    # package and deploy the initial model as v1
+python -m simulation.build_months   # create 12 simulated months in data/simulation/
+python -m unittest discover -s tests -t .
+```
 
 ### Start the Docker stack
 
@@ -43,10 +39,6 @@ docker compose up -d --build
 | MLflow | http://localhost:5000 | `admin` / `MLFLOW_ADMIN_PASSWORD` |
 
 Wait for Jenkins's first successful `fraud-ci` build before replaying data. It tests committed code from `GIT_BRANCH` (default: `main`) and releases it to `fraud-monitor` and `fraud-retrain`. Uncommitted changes are not used by those jobs.
-
-To try one prediction, open the API documentation at `http://localhost:8000/docs`, authorize with the predict key from `.env`, and submit the contents of `example_request.json` to `POST /predict`. You do not need to run the full simulated year to try the service.
-
-### Replay the full experiment
 
 ```powershell
 python -m simulation.replay --pipeline jenkins
@@ -75,30 +67,6 @@ python -m simulation.summarize
 
 Local reports are written to `work/reports/simulation/`.
 
-### Optional: regenerate the prepared data
-
-The included files are sufficient to run the API, Jenkins CI, and the full simulation. To rebuild the simulated months from the included pool, run:
-
-```powershell
-python -m simulation.build_months
-```
-
-To recreate the original splits, download `Base.csv` from the [Bank Account Fraud Dataset Suite on Kaggle](https://www.kaggle.com/datasets/sgpjesus/bank-account-fraud-dataset-neurips-2022) into `data/raw/` and run:
-
-```powershell
-python -m training.get_data         # verify the downloaded source CSV's SHA-256
-python -m training.prepare_data
-python -m simulation.build_months
-```
-
-These commands overwrite the prepared files, so use them only when you intend to regenerate the data. `python -m training.get_data` verifies the source CSV's SHA-256 and creates splits only when `data/splits/split_metadata.json` is absent. The large original CSV stays excluded from Git.
-
-You can also run the unit tests locally:
-
-```powershell
-python -m unittest discover -s tests -t .
-```
-
 ## 2. File structure
 
 | Path | Purpose |
@@ -111,11 +79,10 @@ python -m unittest discover -s tests -t .
 | `configs/` | Training, monitoring, retraining, and drift settings |
 | `docker/`, `docker-compose.yml` | API, PostgreSQL, MLflow, and Jenkins containers |
 | `jenkins/` | CI, monitoring, retraining jobs, and Jenkins configuration |
-| `initial_model/` | Frozen initial model included in Git |
-| `data/splits/`, `data/simulation/` | Prepared data included in Git for reproduction |
-| `data/raw/`, `models/`, `work/` | Local source CSV, generated deployment bundles, and reports; excluded from Git |
+| `initial_model/`, `models/` | Frozen initial model and generated deployment bundles |
+| `data/`, `work/` | Local datasets and generated reports |
 | `tests/` | Unit tests |
-| `charts/` | Result charts included in Git |
+| `charts/`, `RESULTS.md` | Result charts and detailed findings |
 
 ## 3. Findings
 
@@ -132,4 +99,4 @@ The full-label run processed **286,300 applications** across one simulated year,
 - **Monitoring caught distinct problems:** feature drift exposed the scale change, delayed labels exposed fraudsters' camouflage, and data-quality checks blocked retraining during the mobile-form incident.
 - **Key limitations remain:** the 5% audit yielded too few missed-fraud labels to assess recall reliably; legitimate applicants aged 50+ had roughly four times the false-positive rate of younger applicants. BAF is synthetic banking data used as a proxy for benefit applications.
 
-See [charts/](charts/) for visual results. Detailed development notes and result tables in `RESULTS.md` and `docs/` remain local.
+See [RESULTS.md](RESULTS.md) for detailed experiments and limitations, and [charts/](charts/) for visual results.
