@@ -1,17 +1,17 @@
 # Fraud detection — from model to production
 
-IU course DLBDSMTP01, Task 3 (MLOps). A CatBoost REST service prioritizes benefit applications for human review. Predictions are logged, labels arrive four weeks later, and Jenkins monitors drift, adjusts review thresholds, and retrains models.
+IU course DLBDSMTP01, Task 3 
 
 ## 1. Setup
 
-Use **Python 3.12**, **Git**, and **Docker with Compose**. Examples use PowerShell. Start by cloning the repository, then run the remaining commands from its root:
+Use **Python 3.12**, **Git**, and **Docker**. Start by cloning the repository, then run the remaining commands from its root:
 
 ```powershell
 git clone https://github.com/VincentFinkenwirth/FraudDetectionMLOps.git
 cd FraudDetectionMLOps
 ```
 
-The repository includes the **frozen initial model**, **prepared data splits**, and **all 12 months of simulation applications and labels**. A separate Kaggle download, initial model training, and simulation generation are not needed for normal setup. Prepared data occupies approximately **296 MiB** before Git compression. See [data/README.md](data/README.md) for the data source and attribution.
+The repository includes the **frozen initial model**, **prepared data splits**, and **all 12 months of simulation applications and labels**. See [data/README.md](data/README.md) for the data source and attribution.
 
 ### Prepare the environment and model
 
@@ -117,19 +117,5 @@ python -m unittest discover -s tests -t .
 | `tests/` | Unit tests |
 | `charts/` | Result charts included in Git |
 
-## 3. Findings
-
-The full-label run processed **286,300 applications** across one simulated year, with **52 monitoring builds** (**48 successful, 4 unstable due to the form incident, none failed**), **14 trainings**, and **11 model promotions**.
-
-| Approach | Recall | False-positive rate | Sent to review |
-| --- | ---: | ---: | ---: |
-| Retraining + weekly threshold adjustment | 48.3% | 5.2% | 5.7% |
-| Frozen model + weekly threshold adjustment | 46.8% | 5.2% | 5.7% |
-| Frozen model + fixed threshold | 53.8% | 7.7% | 8.3% |
-
-- **Threshold adjustment provided most of the benefit:** it restored review workload within one week after the credit-bureau scale change. The fixed-threshold model caught more fraud but required substantially more reviews.
-- **Retraining added a modest gain:** +1.5 percentage points of recall at the same review workload with all labels; no gain across three realistic-label runs.
-- **Monitoring caught distinct problems:** feature drift exposed the scale change, delayed labels exposed fraudsters' camouflage, and data-quality checks blocked retraining during the mobile-form incident.
-- **Key limitations remain:** the 5% audit yielded too few missed-fraud labels to assess recall reliably; legitimate applicants aged 50+ had roughly four times the false-positive rate of younger applicants. BAF is synthetic banking data used as a proxy for benefit applications.
 
 See [charts/](charts/) for visual results.
