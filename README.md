@@ -4,9 +4,16 @@ IU course DLBDSMTP01, Task 3 (MLOps). A CatBoost REST service prioritizes benefi
 
 ## 1. Setup
 
-Use **Python 3.12**, **Git**, and **Docker with Compose**. Run all commands from the repository root; examples use PowerShell.
+Use **Python 3.12**, **Git**, and **Docker with Compose**. Examples use PowerShell. Start by cloning the repository, then run the remaining commands from its root:
 
-### Prepare the data and model
+```powershell
+git clone https://github.com/VincentFinkenwirth/FraudDetectionMLOps.git
+cd FraudDetectionMLOps
+```
+
+The repository includes the **frozen initial model**, **prepared data splits**, and **all 12 months of simulation applications and labels**. A separate Kaggle download, initial model training, and simulation generation are not needed for normal setup. Prepared data occupies approximately **296 MiB** before Git compression. See [data/README.md](data/README.md) for the data source and attribution.
+
+### Prepare the environment and model
 
 ```powershell
 python -m venv .venv
@@ -17,14 +24,11 @@ Copy-Item .env.example .env
 
 In `.env`, replace the placeholder API keys, passwords, and `MLFLOW_SECRET_KEY` with random values (API keys need at least 16 characters). Keep the service URLs and repository settings unless your setup differs.
 
-Download `Base.csv` from Kaggle's **Bank Account Fraud Dataset Suite (NeurIPS 2022)** into `data/raw/`. The dataset is not included in Git.
-
 ```powershell
-python -m training.get_data         # verify the dataset and create data/splits/
-python -m training.package_model    # package and deploy the initial model as v1
-python -m simulation.build_months   # create 12 simulated months in data/simulation/
-python -m unittest discover -s tests -t .
+python -m training.package_model    # package the supplied model as v1; no training
 ```
+
+This reads the included validation split, applies the probability correction, and creates `models/versions/v1` and `models/current.json` for the API. Generated deployment bundles remain local and are excluded from Git.
 
 ### Start the Docker stack
 
@@ -39,6 +43,10 @@ docker compose up -d --build
 | MLflow | http://localhost:5000 | `admin` / `MLFLOW_ADMIN_PASSWORD` |
 
 Wait for Jenkins's first successful `fraud-ci` build before replaying data. It tests committed code from `GIT_BRANCH` (default: `main`) and releases it to `fraud-monitor` and `fraud-retrain`. Uncommitted changes are not used by those jobs.
+
+To try a single prediction, open `http://localhost:8000/docs`, authorize with the predict key from `.env`, and submit the contents of `example_request.json` to `POST /predict`. Running the full simulated year is optional when trying the service.
+
+### Replay the full experiment
 
 ```powershell
 python -m simulation.replay --pipeline jenkins
@@ -67,6 +75,30 @@ python -m simulation.summarize
 
 Local reports are written to `work/reports/simulation/`.
 
+### Optional: regenerate data or run tests
+
+The included files are sufficient for the API, Jenkins CI, and the full experiment. To rebuild the simulated months from the included simulation pool, run:
+
+```powershell
+python -m simulation.build_months
+```
+
+To recreate the original splits, download `Base.csv` from the [Bank Account Fraud Dataset Suite on Kaggle](https://www.kaggle.com/datasets/sgpjesus/bank-account-fraud-dataset-neurips-2022) into `data/raw/`, then run:
+
+```powershell
+python -m training.get_data         # verify the source CSV's SHA-256
+python -m training.prepare_data     # recreate the splits
+python -m simulation.build_months   # recreate the simulated months
+```
+
+Regeneration overwrites the prepared files. `training.get_data` verifies the downloaded CSV but skips split creation when `data/splits/split_metadata.json` already exists; `training.prepare_data` explicitly recreates them. The original CSV remains excluded from Git.
+
+To run the unit tests locally:
+
+```powershell
+python -m unittest discover -s tests -t .
+```
+
 ## 2. File structure
 
 | Path | Purpose |
@@ -79,14 +111,15 @@ Local reports are written to `work/reports/simulation/`.
 | `configs/` | Training, monitoring, retraining, and drift settings |
 | `docker/`, `docker-compose.yml` | API, PostgreSQL, MLflow, and Jenkins containers |
 | `jenkins/` | CI, monitoring, retraining jobs, and Jenkins configuration |
-| `initial_model/`, `models/` | Frozen initial model and generated deployment bundles |
-| `data/`, `work/` | Local datasets and generated reports |
+| `initial_model/` | Frozen initial model included in Git |
+| `data/splits/`, `data/simulation/` | Prepared data included in Git for reproduction |
+| `data/raw/`, `models/`, `work/` | Local source CSV, generated deployment bundles, and reports; excluded from Git |
 | `tests/` | Unit tests |
-| `charts/`, `RESULTS.md` | Result charts and detailed findings |
+| `charts/` | Result charts included in Git |
 
 ## 3. Findings
 
-The full-label run processed **286,300 applications** across one simulated year, with **52 successful monitoring builds**, **14 trainings**, and **11 model promotions**.
+The full-label run processed **286,300 applications** across one simulated year, with **52 monitoring builds** (**48 successful, 4 unstable due to the form incident, none failed**), **14 trainings**, and **11 model promotions**.
 
 | Approach | Recall | False-positive rate | Sent to review |
 | --- | ---: | ---: | ---: |
@@ -99,4 +132,4 @@ The full-label run processed **286,300 applications** across one simulated year,
 - **Monitoring caught distinct problems:** feature drift exposed the scale change, delayed labels exposed fraudsters' camouflage, and data-quality checks blocked retraining during the mobile-form incident.
 - **Key limitations remain:** the 5% audit yielded too few missed-fraud labels to assess recall reliably; legitimate applicants aged 50+ had roughly four times the false-positive rate of younger applicants. BAF is synthetic banking data used as a proxy for benefit applications.
 
-See [RESULTS.md](RESULTS.md) for detailed experiments and limitations, and [charts/](charts/) for visual results.
+See [charts/](charts/) for visual results. Detailed development notes and result tables in `RESULTS.md` and `docs/` remain local.
